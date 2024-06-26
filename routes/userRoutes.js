@@ -9,7 +9,7 @@ const router = express.Router();
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
     windowMs: 3 * 60 * 60 * 1000, // 3 hours
-    max: 3,
+    max: 4,
     message: "Too many login attempts, please try again after 3 hours",
     onLimitReached: function(req, res, options) {
         console.log(`Too many login attempts from ${req.ip}, temporarily blocked`);
