@@ -50,6 +50,38 @@ router.post('/register', async (req, res) => {
     }
 });
 
+router.put('/update-password/:username', async (req, res) => {
+    const { newPassword } = req.body;
+    const { username } = req.params;
+
+    try {
+        // Validate input
+        if (!newPassword) {
+            return res.status(400).json({ success: false, message: "New password is required" });
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 8);
+
+        // Update password in the database
+        const updatedUser = await User.findOneAndUpdate(
+            { username },
+            { password: hashedPassword },
+            { new: true } // To return the updated document
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+        console.error('Error updating password:', error);
+        res.status(500).json({ success: false, message: "Error updating password", error: error.message });
+    }
+});
+
+
 // POST: Login, with rate limiting
 router.post('/login', loginLimiter, async (req, res) => {
     const { email, password, project } = req.body;
