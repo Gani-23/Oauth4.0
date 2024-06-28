@@ -9,11 +9,11 @@ const router = express.Router();
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
     windowMs: 3 * 60 * 60 * 1000, // 3 hours
-    max: 4,
+    max: 100,
     message: "Too many login attempts, please try again after 3 hours",
     onLimitReached: function(req, res, options) {
         console.log(`Too many login attempts from ${req.ip}, temporarily blocked`);
-        res.status(429).json({ success: false, message: "Too many login attempts, please try again after 3 hours" });
+        res.status(429).json({ success: false,message: "Too many login attempts, please try again after 3 hours" });
     }
 });
 
@@ -112,7 +112,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Retrieve the project URL from the PROJECT_URLS object
         const projectUrl = PROJECT_URLS[project];
         if (projectUrl) {
-            res.json({ success: true, project_url: projectUrl });
+            res.json({ success: true, username: user.username, project_url: projectUrl });
         } else {
             res.status(404).json({ success: false, message: "Project URL not found" });
         }
@@ -122,5 +122,38 @@ router.post('/login', loginLimiter, async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
+// PUT: Update password by username
+router.put('/update-password/:username', async (req, res) => {
+    const { newPassword } = req.body;
+    const { username } = req.params;
+
+    try {
+        // Validate input
+        if (!newPassword) {
+            return res.status(400).json({ success: false, message: "New password is required" });
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 8);
+
+        // Update password in the database
+        const updatedUser = await User.findOneAndUpdate(
+            { username },
+            { password: hashedPassword },
+            { new: true } // To return the updated document
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+        console.error('Error updating password:', error);
+        res.status(500).json({ success: false, message: "Error updating password", error: error.message });
+    }
+});
+
 
 module.exports = router;
