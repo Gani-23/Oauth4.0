@@ -154,6 +154,34 @@ router.put('/update-password/:username', async (req, res) => {
         res.status(500).json({ success: false, message: "Error updating password", error: error.message });
     }
 });
+// PUT: Update name by username
+router.put('/update-name/:username', async (req, res) => {
+    const { newName } = req.body;
+    const { username } = req.params;
+
+    try {
+        // Validate input
+        if (!newName) {
+            return res.status(400).json({ success: false, message: "New name is required" });
+        }
+
+        // Update name in the database
+        const updatedUser = await User.findOneAndUpdate(
+            { username },
+            { name: newName },
+            { new: true } // To return the updated document
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        res.json({ success: true, message: "Name updated successfully", updatedUser });
+    } catch (error) {
+        console.error('Error updating name:', error);
+        res.status(500).json({ success: false, message: "Error updating name", error: error.message });
+    }
+});
 
 
 module.exports = router;
