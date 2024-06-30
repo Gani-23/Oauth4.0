@@ -182,6 +182,18 @@ router.put('/update-name/:username', async (req, res) => {
         res.status(500).json({ success: false, message: "Error updating name", error: error.message });
     }
 });
-
+// DELETE: User by username or email
+router.delete('/delete-user/:usernameOrEmail', async (req, res) => {
+    try {
+        const user = await User.findOneAndDelete({ $or: [{ username: req.params.usernameOrEmail }, { email: req.params.usernameOrEmail }] });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ success: false, message: "Error deleting user", error: error.message });
+    }
+});
 
 module.exports = router;
