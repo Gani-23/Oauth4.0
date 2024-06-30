@@ -183,6 +183,8 @@ router.put('/update-name/:username', async (req, res) => {
     }
 });
 // DELETE: User by username or email
+
+
 router.delete('/delete-user/:usernameOrEmail', async (req, res) => {
     try {
         const user = await User.findOneAndDelete({ $or: [{ username: req.params.usernameOrEmail }, { email: req.params.usernameOrEmail }] });
