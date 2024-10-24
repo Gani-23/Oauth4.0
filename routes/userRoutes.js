@@ -7,6 +7,8 @@ const winston = require('winston');
 const LokiTransport = require('winston-loki');
 const User = require('../models/User');
 const port = process.env.PORT || 3000;
+const opentelemetry = require('@opentelemetry/api');
+
 
 const router = express.Router();
 const register = new Registry();
@@ -22,6 +24,12 @@ const logger = winston.createLogger({
     ],
 });
 
+const createRouteSpan = (operationName) => (req, res, next) => {
+    const parentSpan = req.span;
+    const span = req.tracer.startSpan(operationName, { childOf: parentSpan });
+    req.routeSpan = span;
+    next();
+};
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
     windowMs: 3 * 60 * 60 * 1000, // 3 hours
@@ -82,30 +90,114 @@ router.get('/', async (req, res) => {
     res.send("Hello World");
 });
 
-// POST: Register a new user
-router.post('/register', async (req, res) => {
+router.post('/register', createRouteSpan('register_user'), async (req, res) => {
+    const span = req.routeSpan;
     const { name, username, email, password, role, projects } = req.body;
 
     try {
-        // Validate input
+        span.log({ event: 'validating_input' });
         if (!name || !username || !email || !password || !role || !projects || !Array.isArray(projects)) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'validation_failed' });
+            span.finish();
             return res.status(400).json({ success: false, message: "Missing or invalid fields in request body" });
         }
 
+        span.log({ event: 'checking_existing_user' });
         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
         if (existingUser) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'user_already_exists' });
+            span.finish();
             return res.status(409).json({ success: false, message: "Username or email already exists" });
         }
 
+        span.log({ event: 'hashing_password' });
         const hashedPassword = await bcrypt.hash(password, 8);
+
+        span.log({ event: 'saving_user' });
         const newUser = new User({ name, username, email, password: hashedPassword, role, projects });
         await newUser.save();
 
-        console.log('Saved User:', newUser);
+        span.log({ event: 'user_registered' });
+        span.finish();
         res.status(201).json({ success: true, message: "User registered successfully", userId: newUser._id });
     } catch (error) {
+        span.setTag(Tags.ERROR, true);
+        span.log({
+            event: 'error',
+            'error.object': error,
+            message: error.message,
+            stack: error.stack
+        });
+        span.finish();
         logger.error('Error registering new user:', error);
         res.status(500).json({ success: false, message: "Error registering new user", error: error.message });
+    }
+});
+
+// Login route with Jaeger tracing
+router.post('/login', loginLimiter, createRouteSpan('user_login'), async (req, res) => {
+    const span = req.routeSpan;
+    const { email, password, project } = req.body;
+
+    try {
+        span.log({ event: 'validating_input' });
+        if (!email || !password || !project) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'validation_failed' });
+            span.finish();
+            return res.status(400).json({ success: false, message: "Missing email, password, or project" });
+        }
+
+        span.log({ event: 'finding_user' });
+        const user = await User.findOne({ email });
+        if (!user) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'user_not_found' });
+            span.finish();
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        span.log({ event: 'verifying_password' });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'invalid_credentials' });
+            span.finish();
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        span.log({ event: 'checking_project_access' });
+        if (!user.projects.includes(project)) {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'project_access_denied' });
+            span.finish();
+            return res.status(403).json({ success: false, message: "You don't have access to this project" });
+        }
+
+        const projectUrl = PROJECT_URLS[project];
+        if (projectUrl) {
+            span.log({ event: 'login_successful' });
+            span.finish();
+            res.json({ success: true, username: user.username, project_url: projectUrl });
+        } else {
+            span.setTag(Tags.ERROR, true);
+            span.log({ event: 'project_url_not_found' });
+            span.finish();
+            res.status(404).json({ success: false, message: "Project URL not found" });
+        }
+    } catch (error) {
+        span.setTag(Tags.ERROR, true);
+        span.log({
+            event: 'error',
+            'error.object': error,
+            message: error.message,
+            stack: error.stack
+        });
+        span.finish();
+        logger.error('Login error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
@@ -142,44 +234,6 @@ router.put('/update-password/:username', async (req, res) => {
 });
 
 // POST: Login, with rate limiting
-router.post('/login', loginLimiter, async (req, res) => {
-    const { email, password, project } = req.body;
-
-    try {
-        // Validate input
-        if (!email || !password || !project) {
-            return res.status(400).json({ success: false, message: "Missing email, password, or project" });
-        }
-
-        // Authenticate the user
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        // Check password validity
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        // Check project access
-        if (!user.projects.includes(project)) {
-            return res.status(403).json({ success: false, message: "You don't have access to this project" });
-        }
-
-        // Retrieve the project URL from the PROJECT_URLS object
-        const projectUrl = PROJECT_URLS[project];
-        if (projectUrl) {
-            res.json({ success: true, username: user.username, project_url: projectUrl });
-        } else {
-            res.status(404).json({ success: false, message: "Project URL not found" });
-        }
-    } catch (error) {
-        logger.error('Login error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
 
 // PUT: Update name by username
 router.put('/update-name/:username', async (req, res) => {
