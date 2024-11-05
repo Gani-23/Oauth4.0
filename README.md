@@ -86,3 +86,4 @@ sudo docker run -d --name jaeger \
 
 ![Deepdive](Http.png)
 
+npm install express serverless-http cors jaeger-client prom-client winston winston-loki opentracing morgan bcryptjs node-os-utils express-rate-limit mongoose

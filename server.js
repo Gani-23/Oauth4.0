@@ -6,6 +6,8 @@ const ProductRoutes = require('./routes/ProductRoutes');
 const { initTracer } = require('./jaegerconfig');
 const { Tags, FORMAT_HTTP_HEADERS } = require('opentracing');
 const morgan = require('morgan');
+const serverless = require('serverless-http'); // This will help adapt your Express app to work on Vercel.
+
 
 // Initialize Jaeger Tracer conditionally based on environment
 let tracer;
@@ -74,3 +76,5 @@ process.on('SIGTERM', async () => {
     await connectDB.close();  // Assuming your DB connection has a close method
     process.exit(0);
 });
+
+module.exports.handler = serverless(app);  // Expose the handler for serverless deployment
