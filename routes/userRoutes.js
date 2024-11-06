@@ -102,12 +102,13 @@ router.post('/register', async (req, res) => {
         const newUser = new User({ name, username, email, password: hashedPassword, role, projects });
         await newUser.save();
 
-        res.status(201).json({ success: true, message: "User registered successfully", userId: newUser._id });
+        return res.status(201).json({ success: true, message: "User registered successfully", userId: newUser._id });
     } catch (error) {
         logger.error('Error registering new user:', error);
-        res.status(500).json({ success: false, message: "Error registering new user", error: error.message });
+        return res.status(500).json({ success: false, message: "Error registering new user", error: error.message });
     }
 });
+
 
 // Login route
 router.post('/login', loginLimiter, async (req, res) => {
