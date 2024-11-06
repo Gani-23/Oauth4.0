@@ -10,6 +10,11 @@ const { Tags } = require('opentracing');
 
 const router = express.Router();
 const register = new Registry();
+const PROJECT_URLS = {
+    testing: "https://www.example.com/project1",
+    project2: "https://www.example.com/project2",
+    krushigowrava: "/store",
+};
 
 // Initialize logger for Loki
 const logger = winston.createLogger({
@@ -235,43 +240,49 @@ router.post('/register', createRouteSpan('register_user'), async (req, res) => {
 });
 
 // User login
-router.post('/login', loginLimiter, createRouteSpan('user_login'), async (req, res) => {
-    const span = req.routeSpan;
+// User login (password hashing stays, but no failed login tracking)
+router.post('/login', loginLimiter, async (req, res) => {
     const { email, password, project } = req.body;
 
     try {
+        // Validation of input data
         if (!email || !password || !project) {
-            return handleError(res, span, new Error("Missing email, password, or project"), "Validation failed");
+            return res.status(400).json({ success: false, message: "Missing email, password, or project" });
         }
 
+        // Find user by email
         const user = await User.findOne({ email });
+        console.log('User found:', user); // Debugging line to check the user object
+
         if (!user) {
-            failedLoginAttemptsCounter.inc(); // Increment failed login attempts
-            return handleError(res, span, new Error("User not found"), "User login failed");
+            return res.status(404).json({ success: false, message: "User not found" });
         }
 
+        // Compare the password (bcrypt)
         const isMatch = await bcrypt.compare(password, user.password);
+        console.log('Password match result:', isMatch); // Debugging line to check if password matches
+
         if (!isMatch) {
-            failedLoginAttemptsCounter.inc(); // Increment failed login attempts
-            return handleError(res, span, new Error("Invalid credentials"), "User login failed");
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
-        successfulLoginsCounter.inc(); // Increment successful logins
-
+        // Check if user has access to the project
         if (!user.projects.includes(project)) {
-            return handleError(res, span, new Error("Project access denied"), "User login failed");
+            return res.status(403).json({ success: false, message: "Project access denied" });
         }
 
+        // Fetch the project URL
         const projectUrl = PROJECT_URLS[project];
-        if (projectUrl) {
-            span.log({ event: 'login_successful' });
-            span.finish();
-            res.json({ success: true, username: user.username, project_url: projectUrl });
-        } else {
-            return handleError(res, span, new Error("Project URL not found"), "User login failed");
+        if (!projectUrl) {
+            return res.status(404).json({ success: false, message: "Project URL not found" });
         }
+
+        // Success case
+        res.json({ success: true, username: user.username, project_url: projectUrl });
     } catch (error) {
-        handleError(res, span, error, "Error during login");
+        // Detailed error logging
+        logger.error('Error during login:', error);
+        return res.status(500).json({ success: false, message: "Error during login", error: error.message });
     }
 });
 
