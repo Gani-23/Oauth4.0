@@ -111,39 +111,83 @@ router.post('/register', async (req, res) => {
 
 
 // Login route
-router.post('/login', loginLimiter, async (req, res) => {
+const bcrypt = require('bcryptjs');
+const { User } = require('../models/User'); // Adjust according to your structure
+const { PROJECT_URLS } = require('../config');
+const logger = require('../logger'); // Adjust the logger according to your logging setup
+
+router.post('/login', async (req, res) => {
     const { email, password, project } = req.body;
 
-    try {
-        if (!email || !password || !project) {
-            return res.status(400).json({ success: false, message: "Missing email, password, or project" });
-        }
+    // Validate input fields
+    if (!email || !password || !project) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing email, password, or project",
+        });
+    }
 
+    // Validate email format
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid email format",
+        });
+    }
+
+    try {
+        // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
         }
 
+        // Compare password with hashed password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials',
+            });
         }
 
+        // Check if user has access to the specified project
         if (!user.projects.includes(project)) {
-            return res.status(403).json({ success: false, message: "You don't have access to this project" });
+            return res.status(403).json({
+                success: false,
+                message: "You don't have access to this project",
+            });
         }
 
+        // Get project URL
         const projectUrl = PROJECT_URLS[project];
-        if (projectUrl) {
-            res.json({ success: true, username: user.username, project_url: projectUrl });
-        } else {
-            res.status(404).json({ success: false, message: "Project URL not found" });
+        if (!projectUrl) {
+            return res.status(404).json({
+                success: false,
+                message: "Project URL not found",
+            });
         }
+
+        // Send success response with project URL
+        res.json({
+            success: true,
+            username: user.username,
+            project_url: projectUrl,
+        });
     } catch (error) {
+        // Log the error and send a generic server error response
         logger.error('Login error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+        });
     }
 });
+
 
 // PUT: Update password by username
 router.put('/update-password/:username', async (req, res) => {
