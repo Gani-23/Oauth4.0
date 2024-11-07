@@ -89,29 +89,53 @@ router.post('/register', async (req, res) => {
     const { name, username, email, password, role, projects } = req.body;
 
     try {
+        // Validate required fields
         if (!name || !username || !email || !password || !role || !projects || !Array.isArray(projects)) {
             return res.status(400).json({ success: false, message: "Missing or invalid fields in request body" });
         }
 
+        // Check if user with the same username or email already exists
         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
         if (existingUser) {
             return res.status(409).json({ success: false, message: "Username or email already exists" });
         }
 
+        // Hash the password
         const hashedPassword = await bcrypt.hash(password, 8);
-        const newUser = new User({ name, username, email, password: hashedPassword, role, projects });
+
+        // Create a new user object
+        const newUser = new User({
+            name,
+            username,
+            email,
+            password: hashedPassword,
+            role,
+            projects,
+        });
+
+        // Save the new user to the database
         await newUser.save();
 
-        return res.status(201).json({ success: true, message: "User registered successfully", userId: newUser._id });
+        // Send success response with status 201 (Created)
+        return res.status(201).json({
+            success: true,
+            message: "User registered successfully",
+            userId: newUser._id,
+        });
     } catch (error) {
-        logger.error('Error registering new user:', error);
-        return res.status(500).json({ success: false, message: "Error registering new user", error: error.message });
+        console.error('Error registering new user:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error registering new user",
+            error: error.message,
+        });
     }
 });
 
 
 // Login route
-router.post('/login', loginLimiter, async (req, res) => {
+ 
+router.post('/login', async (req, res) => {
     const { email, password, project } = req.body;
 
     try {
