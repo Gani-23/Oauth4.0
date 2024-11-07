@@ -34,6 +34,7 @@ const PROJECT_URLS = {
     testing: "https://www.example.com/project1",
     project2: "https://www.example.com/project2",
     krushigowrava: "/store",
+    KrushiGowrava: "/store",
 };
 
 // Metrics
