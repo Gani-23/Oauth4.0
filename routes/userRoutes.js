@@ -35,7 +35,8 @@ const PROJECT_URLS = {
     project2: "https://www.example.com/project2",
     KrushiGowrava: "/store",
     krushigowrava: "/store",
-    musicApp:"/GenAI"
+    musicApp:"/GenAI",
+    krick: "/krick"
 };
 
 // Metrics
