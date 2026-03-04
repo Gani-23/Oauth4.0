@@ -1,9 +1,10 @@
 const express = require("express");
 const Product = require("../models/Shop");
+const { requireAuth, requireRole } = require("../middleware/auth");
 const router = express.Router();
 
 // 🔁 Bulk create products
-router.post("/bulk", async (req, res) => {
+router.post("/bulk", requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
     const products = req.body;
     if (!Array.isArray(products) || products.length === 0) {
@@ -24,7 +25,7 @@ router.post("/bulk", async (req, res) => {
 });
 
 // 🆕 Create a product
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
     const { title, description, imgSrc, price, stock, sellerName, sellerAddress, category } = req.body;
     if (!title || !description || !imgSrc || !price || !stock || !sellerName || !sellerAddress || !category) {
@@ -72,7 +73,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ✏️ Update product
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
     const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: "Product not found." });
@@ -84,7 +85,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // ❌ Delete product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
     const deleted = await Product.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: "Product not found." });
@@ -183,11 +184,12 @@ router.get("/stats/summary", async (req, res) => {
 });
 
 // ⭐ Add or update a product rating
-router.post("/:id/rate", async (req, res) => {
+router.post("/:id/rate", requireAuth, async (req, res) => {
   try {
-    const { userId, rating, review } = req.body;
-    if (!userId || !rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: "Valid userId and rating (1-5) are required." });
+    const { rating, review } = req.body;
+    const userId = req.user.id;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Valid rating (1-5) is required." });
     }
 
     const product = await Product.findById(req.params.id);
@@ -281,9 +283,14 @@ router.get("/:id/reviews", async (req, res) => {
 });
 
 // 🗑️ Delete a rating
-router.delete("/:productId/ratings/:userId", async (req, res) => {
+router.delete("/:productId/ratings/:userId", requireAuth, async (req, res) => {
   try {
     const { productId, userId } = req.params;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAdmin && req.user.id !== userId) {
+      return res.status(403).json({ error: "You can only delete your own rating." });
+    }
     
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ error: "Product not found." });

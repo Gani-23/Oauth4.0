@@ -19,6 +19,21 @@ This project is based on Authentication and Authorisation that provides [brief d
 - **Application Instance** : To Deploy the application 
 - **Monitoring Intance** : To monitor application metrics
 
+## Environment Variables
+
+Set the following in `.env` before running:
+
+```
+MONGODB_URI=<mongodb_connection_string>
+JWT_ACCESS_SECRET=<long_random_secret>
+JWT_REFRESH_SECRET=<long_random_secret>
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_TTL_DAYS=7
+BCRYPT_ROUNDS=12
+CORS_ORIGINS=http://localhost:3000
+LOKI_HOST=http://49.121.3.2:3100
+```
+
 ## Deployment
 
 To deploy the microservice along with Prometheus and Grafana, follow these steps:
@@ -63,9 +78,11 @@ sudo docker run -d --name jaeger \
 
 | Endpoint                | Method | Description                      |
 |-------------------------|--------|----------------------------------|
-| `/api/login`            | POST   | Authenticates a user             |
-| `/api/register`         | POST   | Registers a new user             |
-| `/api/users/metrics`    | GET    | Retrieves metrics for monitoring |
+| `/api/users/register`   | POST   | Registers a new user             |
+| `/api/users/login`      | POST   | Authenticates and issues tokens  |
+| `/api/users/auth/refresh` | POST | Rotates refresh token + new access token |
+| `/api/users/logout`     | POST   | Revokes refresh token            |
+| `/api/users/metrics`    | GET    | Retrieves metrics (admin + token required) |
 | `/api/users/`           | GET    | Returns Hello World Image        |
 
 ## Deployment Images 
