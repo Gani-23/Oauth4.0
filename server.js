@@ -14,18 +14,15 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+const isOriginAllowed = (origin) => !origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin);
 
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-            callback(null, true);
-            return;
-        }
-        callback(new Error('Not allowed by CORS'));
+        callback(null, isOriginAllowed(origin));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Break-Glass-Token', 'X-Test-Run-Id'],
 };
 
 // Connect to MongoDB
@@ -37,6 +34,17 @@ app.set('trust proxy', 1);
 
 // CORS configuration for production
 app.use(cors(corsOptions));
+app.use((req, res, next) => {
+    if (isOriginAllowed(req.headers.origin)) {
+        next();
+        return;
+    }
+
+    res.status(403).json({
+        success: false,
+        message: 'Origin not allowed by CORS',
+    });
+});
 
 // HTTP request logging (optional but useful for debugging)
 app.use(attachTestRunId);

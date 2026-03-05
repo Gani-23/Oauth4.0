@@ -89,6 +89,10 @@ const memoryUsageGauge = new Gauge({
     help: 'Memory usage in bytes',
 });
 metricsRegistry.registerMetric(memoryUsageGauge);
+const BYTES_PER_MB = 1024 * 1024;
+const METRICS_INTERVAL_MS = Math.max(5000, Number(process.env.SYSTEM_METRICS_INTERVAL_MS || 15000));
+const METRICS_ERROR_LOG_THROTTLE_MS = Math.max(10000, Number(process.env.SYSTEM_METRICS_ERROR_THROTTLE_MS || 60000));
+const SYSTEM_METRICS_ENABLED = String(process.env.SYSTEM_METRICS_ENABLED || 'true').toLowerCase() !== 'false';
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const normalizeUsername = (username) => String(username || '').trim().toLowerCase();
@@ -185,15 +189,52 @@ const getAppsMap = async ({ includeInactive = false } = {}) => {
 
 const requireAdminSafe = [requireAuth, requireRole(['admin']), adminIpGuard];
 
-const metricsInterval = setInterval(async () => {
-    try {
-        const mem = await osu.mem.info();
-        memoryUsageGauge.set(mem.usedMem);
-    } catch (error) {
-        logger.error('Failed to retrieve memory info', { error: error.message });
+const getUsedMemoryBytes = (mem) => {
+    if (!mem || typeof mem !== 'object') {
+        return null;
     }
-}, 5000);
-metricsInterval.unref();
+
+    if (Number.isFinite(mem.usedMem)) {
+        return Number(mem.usedMem);
+    }
+
+    if (Number.isFinite(mem.usedMemMb)) {
+        return Number(mem.usedMemMb) * BYTES_PER_MB;
+    }
+
+    return null;
+};
+
+let lastMetricsErrorAt = 0;
+const logMetricsIssue = (message, meta = {}) => {
+    const now = Date.now();
+    if ((now - lastMetricsErrorAt) < METRICS_ERROR_LOG_THROTTLE_MS) {
+        return;
+    }
+    lastMetricsErrorAt = now;
+    logger.warn(message, meta);
+};
+
+if (SYSTEM_METRICS_ENABLED) {
+    const metricsInterval = setInterval(async () => {
+        try {
+            const mem = await osu.mem.info();
+            const usedBytes = getUsedMemoryBytes(mem);
+
+            if (!Number.isFinite(usedBytes) || usedBytes < 0) {
+                logMetricsIssue('Skipping memory gauge update due to invalid memory payload', {
+                    keys: Object.keys(mem || {}),
+                });
+                return;
+            }
+
+            memoryUsageGauge.set(usedBytes);
+        } catch (error) {
+            logMetricsIssue('Failed to retrieve memory info', { error: error.message });
+        }
+    }, METRICS_INTERVAL_MS);
+    metricsInterval.unref();
+}
 
 router.use((req, res, next) => {
     const end = httpRequestDurationMicroseconds.startTimer();
