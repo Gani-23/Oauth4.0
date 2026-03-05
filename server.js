@@ -4,8 +4,10 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const ProductRoutes = require('./routes/ProductRoutes');
+const adminConsoleRoute = require('./routes/adminConsoleRoute');
 const morgan = require('morgan');
 const serverless = require('serverless-http'); // This will help adapt your Express app to work on Vercel.
+const { attachTestRunId } = require('./config/safety');
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
@@ -37,9 +39,12 @@ app.set('trust proxy', 1);
 app.use(cors(corsOptions));
 
 // HTTP request logging (optional but useful for debugging)
-app.use(morgan('dev'));
+app.use(attachTestRunId);
+morgan.token('test-run-id', (req) => req.testRunId || '-');
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms testRun=:test-run-id'));
 
 // Define routes
+app.use('/', adminConsoleRoute);
 app.use('/api/users', userRoutes);
 app.use('/api/products', ProductRoutes);
 

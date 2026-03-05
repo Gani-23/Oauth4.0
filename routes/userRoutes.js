@@ -8,7 +8,20 @@ const osu = require('node-os-utils');
 const winston = require('winston');
 const LokiTransport = require('winston-loki');
 const User = require('../models/User');
+const App = require('../models/App');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const {
+    AUTH_TEST_MODE,
+    hasBreakGlassToken,
+    adminIpGuard,
+    authGuardMiddleware,
+    recordAuthAttempt,
+    resetSafetyGuard,
+    getSafetySnapshot,
+    getFeatureFlags,
+    setFeatureFlag,
+    isFeatureEnabled,
+} = require('../config/safety');
 
 const router = express.Router();
 const metricsRegistry = new Registry();
@@ -25,38 +38,37 @@ if (!ACCESS_TOKEN_SECRET || !REFRESH_TOKEN_SECRET) {
     console.warn('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET should be set in environment variables.');
 }
 
-// Initialize logger for Loki
-const logger = winston.createLogger({
-    transports: [
+const lokiHost = String(process.env.LOKI_HOST || '').trim();
+const loggerTransports = [
+    new winston.transports.Console({
+        level: 'info',
+    }),
+];
+
+if (lokiHost && lokiHost !== '#') {
+    loggerTransports.push(
         new LokiTransport({
-            host: process.env.LOKI_HOST || 'http://49.121.3.2:3100',
+            host: lokiHost,
             json: true,
             level: 'info',
         }),
-    ],
+    );
+}
+
+const logger = winston.createLogger({
+    level: 'info',
+    transports: loggerTransports,
 });
 
-// Rate limiter for auth endpoints
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
     message: 'Too many authentication attempts, please try again in 15 minutes',
+    skip: (req) => AUTH_TEST_MODE && hasBreakGlassToken(req),
 });
 
-const PROJECT_URLS = {
-    testing: 'https://www.example.com/project1',
-    project2: 'https://www.example.com/project2',
-    KrushiGowrava: '/store',
-    krushigowrava: '/store',
-    musicApp: '/GenAI',
-    krick: '/krick',
-};
-
-const ALLOWED_PROJECTS = Object.keys(PROJECT_URLS);
-
-// Metrics
 const httpRequestCounter = new Counter({
     name: 'http_requests_total',
     help: 'Total number of HTTP requests',
@@ -80,6 +92,8 @@ metricsRegistry.registerMetric(memoryUsageGauge);
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const normalizeUsername = (username) => String(username || '').trim().toLowerCase();
+const normalizeAppId = (appId) => String(appId || '').trim().toLowerCase();
+const normalizeAppList = (appIds) => [...new Set((appIds || []).map(normalizeAppId).filter(Boolean))];
 
 const isStrongPassword = (password) => {
     if (typeof password !== 'string') {
@@ -105,23 +119,25 @@ const parseCookies = (cookieHeader) => {
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-const issueAccessToken = (user) => jwt.sign(
+const issueAccessToken = (user, appId) => jwt.sign(
     {
         sub: user._id.toString(),
         username: user.username,
         role: user.role,
         projects: user.projects,
         tokenVersion: user.tokenVersion,
+        appId,
     },
     ACCESS_TOKEN_SECRET,
-    { expiresIn: ACCESS_TOKEN_EXPIRES_IN },
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN, audience: appId },
 );
 
-const issueRefreshToken = (user) => jwt.sign(
+const issueRefreshToken = (user, appId) => jwt.sign(
     {
         sub: user._id.toString(),
         tokenVersion: user.tokenVersion,
         type: 'refresh',
+        appId,
     },
     REFRESH_TOKEN_SECRET,
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN },
@@ -146,7 +162,29 @@ const clearRefreshTokenCookie = (res) => {
     });
 };
 
-// Update system metrics periodically
+const getAppsMap = async ({ includeInactive = false } = {}) => {
+    const appsMap = new Map();
+
+    const dbQuery = includeInactive ? {} : { status: 'active' };
+    const dbApps = await App.find(dbQuery)
+        .select('appId name appUrl description status')
+        .lean();
+
+    dbApps.forEach((app) => {
+        appsMap.set(app.appId, {
+            appId: app.appId,
+            name: app.name,
+            appUrl: app.appUrl,
+            description: app.description || '',
+            status: app.status,
+        });
+    });
+
+    return appsMap;
+};
+
+const requireAdminSafe = [requireAuth, requireRole(['admin']), adminIpGuard];
+
 const metricsInterval = setInterval(async () => {
     try {
         const mem = await osu.mem.info();
@@ -157,7 +195,6 @@ const metricsInterval = setInterval(async () => {
 }, 5000);
 metricsInterval.unref();
 
-// Middleware for logging and metrics
 router.use((req, res, next) => {
     const end = httpRequestDurationMicroseconds.startTimer();
     const routeLabel = `${req.baseUrl || ''}${req.path}`;
@@ -166,25 +203,24 @@ router.use((req, res, next) => {
         const labels = { method: req.method, route: routeLabel, status: String(res.statusCode) };
         httpRequestCounter.inc(labels);
         end(labels);
-        logger.info(`Request: ${req.method} ${req.url} - Status: ${res.statusCode}`);
+        logger.info(`Request: ${req.method} ${req.url} - Status: ${res.statusCode} - testRun: ${req.testRunId || '-'}`);
     });
 
     next();
 });
 
-// Test route
 router.get('/', async (req, res) => {
     res.send('Hello World');
 });
 
-// Registration route
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register', authGuardMiddleware, authLimiter, async (req, res) => {
     const {
         name,
         username,
         email,
         password,
         projects,
+        apps,
     } = req.body || {};
 
     try {
@@ -201,9 +237,17 @@ router.post('/register', authLimiter, async (req, res) => {
 
         const normalizedUsername = normalizeUsername(username);
         const normalizedEmail = normalizeEmail(email);
-        const safeProjectsInput = Array.isArray(projects) ? projects : ['testing'];
-        const normalizedProjects = [...new Set(safeProjectsInput.filter((project) => ALLOWED_PROJECTS.includes(project)))];
-        const userProjects = normalizedProjects.length > 0 ? normalizedProjects : ['testing'];
+        const appsMap = await getAppsMap();
+        const allowedAppIds = new Set([...appsMap.keys()]);
+        const requestedApps = Array.isArray(apps) ? apps : projects;
+        const normalizedApps = normalizeAppList(requestedApps).filter((appId) => allowedAppIds.has(appId));
+
+        if (Array.isArray(requestedApps) && requestedApps.length > 0 && normalizedApps.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'None of the provided apps exist. Admin must create apps first.',
+            });
+        }
 
         const existingUser = await User.findOne({
             $or: [
@@ -216,6 +260,7 @@ router.post('/register', authLimiter, async (req, res) => {
             return res.status(409).json({ success: false, message: 'Username or email already exists' });
         }
 
+        const userApps = normalizedApps;
         const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
         const newUser = new User({
@@ -224,7 +269,7 @@ router.post('/register', authLimiter, async (req, res) => {
             email: normalizedEmail,
             password: hashedPassword,
             role: 'user',
-            projects: userProjects,
+            projects: userApps,
         });
 
         await newUser.save();
@@ -233,6 +278,7 @@ router.post('/register', authLimiter, async (req, res) => {
             success: true,
             message: 'User registered successfully',
             userId: newUser._id,
+            apps: userApps,
         });
     } catch (error) {
         logger.error('Error registering user', { error: error.message });
@@ -243,16 +289,22 @@ router.post('/register', authLimiter, async (req, res) => {
     }
 });
 
-router.post('/login', authLimiter, async (req, res) => {
-    const { email, password, project } = req.body || {};
+router.post('/login', authGuardMiddleware, authLimiter, async (req, res) => {
+    const {
+        email,
+        password,
+        appId,
+        project,
+    } = req.body || {};
 
     try {
         if (!ACCESS_TOKEN_SECRET || !REFRESH_TOKEN_SECRET) {
             return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
         }
 
-        if (!email || !password || !project) {
-            return res.status(400).json({ success: false, message: 'Missing email, password, or project' });
+        const requestedAppId = normalizeAppId(appId || project);
+        if (!email || !password || !requestedAppId) {
+            return res.status(400).json({ success: false, message: 'Missing email, password, or appId' });
         }
 
         const normalizedEmail = normalizeEmail(email);
@@ -261,31 +313,36 @@ router.post('/login', authLimiter, async (req, res) => {
             .select('+password +refreshTokenHash +refreshTokenExpiresAt tokenVersion');
 
         if (!user) {
+            recordAuthAttempt(false, 'login');
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            recordAuthAttempt(false, 'login');
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        if (!user.projects.includes(project)) {
-            return res.status(403).json({ success: false, message: "You don't have access to this project" });
+        const userAppIds = normalizeAppList(user.projects);
+        if (!userAppIds.includes(requestedAppId)) {
+            return res.status(403).json({ success: false, message: "You don't have access to this app" });
         }
 
-        const projectUrl = PROJECT_URLS[project];
-        if (!projectUrl) {
-            return res.status(403).json({ success: false, message: 'Project is not available' });
+        const appsMap = await getAppsMap();
+        const targetApp = appsMap.get(requestedAppId);
+        if (!targetApp || targetApp.status !== 'active') {
+            return res.status(403).json({ success: false, message: 'App is not available' });
         }
 
-        const accessToken = issueAccessToken(user);
-        const refreshToken = issueRefreshToken(user);
+        const accessToken = issueAccessToken(user, requestedAppId);
+        const refreshToken = issueRefreshToken(user, requestedAppId);
 
         user.refreshTokenHash = hashToken(refreshToken);
         user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS);
         await user.save();
 
         setRefreshTokenCookie(res, refreshToken);
+        recordAuthAttempt(true, 'login');
 
         return res.json({
             success: true,
@@ -293,21 +350,25 @@ router.post('/login', authLimiter, async (req, res) => {
             tokenType: 'Bearer',
             expiresIn: ACCESS_TOKEN_EXPIRES_IN,
             username: user.username,
-            project_url: projectUrl,
+            app_id: targetApp.appId,
+            app: targetApp,
+            project_url: targetApp.appUrl,
             user: {
                 id: user._id,
                 username: user.username,
                 role: user.role,
-                projects: user.projects,
+                apps: userAppIds,
+                projects: userAppIds,
             },
         });
     } catch (error) {
         logger.error('Login error', { error: error.message });
+        recordAuthAttempt(false, 'login');
         return res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
-router.post('/auth/refresh', authLimiter, async (req, res) => {
+router.post('/auth/refresh', authGuardMiddleware, authLimiter, async (req, res) => {
     try {
         if (!ACCESS_TOKEN_SECRET || !REFRESH_TOKEN_SECRET) {
             return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
@@ -317,48 +378,77 @@ router.post('/auth/refresh', authLimiter, async (req, res) => {
         const refreshToken = cookies.refreshToken || req.body?.refreshToken;
 
         if (!refreshToken) {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Refresh token is required' });
         }
 
         const payload = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
         if (payload.type !== 'refresh') {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+        }
+
+        const requestedAppId = normalizeAppId(req.body?.appId || req.body?.project || payload.appId);
+        if (!requestedAppId || requestedAppId !== payload.appId) {
+            recordAuthAttempt(false, 'refresh');
+            return res.status(401).json({ success: false, message: 'Refresh token app mismatch' });
         }
 
         const user = await User.findById(payload.sub)
             .select('+refreshTokenHash +refreshTokenExpiresAt tokenVersion username role projects');
 
         if (!user) {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Invalid refresh token' });
         }
 
         if (payload.tokenVersion !== user.tokenVersion) {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Session expired. Login again.' });
         }
 
         if (!user.refreshTokenHash || !user.refreshTokenExpiresAt || user.refreshTokenExpiresAt < new Date()) {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Refresh token expired' });
         }
 
         if (hashToken(refreshToken) !== user.refreshTokenHash) {
+            recordAuthAttempt(false, 'refresh');
             return res.status(401).json({ success: false, message: 'Invalid refresh token' });
         }
 
-        const newRefreshToken = issueRefreshToken(user);
+        const userAppIds = normalizeAppList(user.projects);
+        if (!userAppIds.includes(requestedAppId)) {
+            recordAuthAttempt(false, 'refresh');
+            return res.status(403).json({ success: false, message: 'Access to this app has been revoked' });
+        }
+
+        const appsMap = await getAppsMap();
+        const targetApp = appsMap.get(requestedAppId);
+        if (!targetApp || targetApp.status !== 'active') {
+            recordAuthAttempt(false, 'refresh');
+            return res.status(403).json({ success: false, message: 'App is not available' });
+        }
+
+        const newRefreshToken = issueRefreshToken(user, requestedAppId);
         user.refreshTokenHash = hashToken(newRefreshToken);
         user.refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE_MS);
         await user.save();
 
         setRefreshTokenCookie(res, newRefreshToken);
 
-        const accessToken = issueAccessToken(user);
+        const accessToken = issueAccessToken(user, requestedAppId);
+        recordAuthAttempt(true, 'refresh');
         return res.json({
             success: true,
             accessToken,
             tokenType: 'Bearer',
             expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+            app_id: targetApp.appId,
+            app: targetApp,
         });
     } catch (error) {
+        recordAuthAttempt(false, 'refresh');
         return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
 });
@@ -378,7 +468,306 @@ router.post('/logout', requireAuth, async (req, res) => {
     }
 });
 
-// PUT: Update password by username
+router.get('/apps', requireAuth, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            let allowed = false;
+            adminIpGuard(req, res, () => {
+                allowed = true;
+            });
+            if (!allowed) {
+                return;
+            }
+
+            const appsMap = await getAppsMap({ includeInactive: true });
+            return res.json({
+                success: true,
+                total: appsMap.size,
+                apps: [...appsMap.values()],
+            });
+        }
+
+        const appsMap = await getAppsMap();
+        const apps = normalizeAppList(req.user.projects)
+            .map((appId) => appsMap.get(appId))
+            .filter(Boolean);
+
+        return res.json({
+            success: true,
+            total: apps.length,
+            apps,
+        });
+    } catch (error) {
+        logger.error('Get apps error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error retrieving apps' });
+    }
+});
+
+router.post('/apps', ...requireAdminSafe, async (req, res) => {
+    const { appId, name, appUrl, description, status } = req.body || {};
+
+    try {
+        const normalizedAppId = normalizeAppId(appId);
+        if (!normalizedAppId || !name || !appUrl) {
+            return res.status(400).json({ success: false, message: 'appId, name and appUrl are required' });
+        }
+
+        const existing = await App.findOne({ appId: normalizedAppId });
+        if (existing) {
+            return res.status(409).json({ success: false, message: 'appId already exists' });
+        }
+
+        const createdApp = await App.create({
+            appId: normalizedAppId,
+            name: String(name).trim(),
+            appUrl: String(appUrl).trim(),
+            description: String(description || '').trim(),
+            status: status === 'inactive' ? 'inactive' : 'active',
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: 'App created successfully',
+            app: createdApp,
+        });
+    } catch (error) {
+        logger.error('Create app error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error creating app' });
+    }
+});
+
+router.put('/apps/:appId/status', ...requireAdminSafe, async (req, res) => {
+    try {
+        const normalizedAppId = normalizeAppId(req.params.appId);
+        const { status } = req.body || {};
+
+        if (!['active', 'inactive'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'status must be active or inactive' });
+        }
+
+        const updatedApp = await App.findOneAndUpdate(
+            { appId: normalizedAppId },
+            { status },
+            { new: true },
+        );
+
+        if (!updatedApp) {
+            return res.status(404).json({ success: false, message: 'App not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'App status updated successfully',
+            app: updatedApp,
+        });
+    } catch (error) {
+        logger.error('Update app status error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating app status' });
+    }
+});
+
+router.put('/apps/:appId/assign/:username', ...requireAdminSafe, async (req, res) => {
+    try {
+        const normalizedAppId = normalizeAppId(req.params.appId);
+        const normalizedUsername = normalizeUsername(req.params.username);
+
+        const appsMap = await getAppsMap({ includeInactive: true });
+        const targetApp = appsMap.get(normalizedAppId);
+        if (!targetApp) {
+            return res.status(404).json({ success: false, message: 'App not found' });
+        }
+
+        const user = await User.findOne({ username: normalizedUsername });
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const userAppIds = normalizeAppList(user.projects);
+        if (!userAppIds.includes(normalizedAppId)) {
+            user.projects = [...userAppIds, normalizedAppId];
+            await user.save();
+        }
+
+        return res.json({
+            success: true,
+            message: 'App assigned successfully',
+            username: user.username,
+            apps: normalizeAppList(user.projects),
+        });
+    } catch (error) {
+        logger.error('Assign app error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error assigning app' });
+    }
+});
+
+router.put('/apps/:appId/unassign/:username', ...requireAdminSafe, async (req, res) => {
+    try {
+        const normalizedAppId = normalizeAppId(req.params.appId);
+        const normalizedUsername = normalizeUsername(req.params.username);
+        const user = await User.findOne({ username: normalizedUsername });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        user.projects = normalizeAppList(user.projects).filter((app) => app !== normalizedAppId);
+        user.tokenVersion += 1;
+        user.refreshTokenHash = null;
+        user.refreshTokenExpiresAt = null;
+        await user.save();
+
+        return res.json({
+            success: true,
+            message: 'App unassigned successfully',
+            username: user.username,
+            apps: normalizeAppList(user.projects),
+        });
+    } catch (error) {
+        logger.error('Unassign app error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error unassigning app' });
+    }
+});
+
+router.get('/admin/summary', ...requireAdminSafe, async (req, res) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        const adminUsers = await User.countDocuments({ role: 'admin' });
+
+        const appsMap = await getAppsMap({ includeInactive: true });
+        const apps = [...appsMap.values()];
+        const activeApps = apps.filter((app) => app.status === 'active').length;
+
+        return res.json({
+            success: true,
+            totalUsers,
+            adminUsers,
+            totalApps: apps.length,
+            activeApps,
+            inactiveApps: apps.length - activeApps,
+        });
+    } catch (error) {
+        logger.error('Admin summary error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching admin summary' });
+    }
+});
+
+router.get('/admin/users', ...requireAdminSafe, async (req, res) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+        const users = await User.find({})
+            .select('name username email role projects createdAt')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        return res.json({
+            success: true,
+            total: users.length,
+            users,
+        });
+    } catch (error) {
+        logger.error('Admin users error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching users' });
+    }
+});
+
+router.put('/admin/role/:username', ...requireAdminSafe, async (req, res) => {
+    try {
+        const username = normalizeUsername(req.params.username);
+        const role = String(req.body?.role || '').trim().toLowerCase();
+
+        if (!['user', 'admin'].includes(role)) {
+            return res.status(400).json({ success: false, message: 'role must be user or admin' });
+        }
+
+        const targetUser = await User.findOneAndUpdate(
+            { username },
+            { role },
+            { new: true },
+        ).select('name username email role projects');
+
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'User role updated successfully',
+            user: targetUser,
+        });
+    } catch (error) {
+        logger.error('Admin role update error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating user role' });
+    }
+});
+
+router.get('/admin/safety/status', ...requireAdminSafe, async (_req, res) => {
+    try {
+        const snapshot = getSafetySnapshot();
+        return res.json({
+            success: true,
+            safety: snapshot,
+            highlights: {
+                passkey: isFeatureEnabled('PASSKEY'),
+                dpop: isFeatureEnabled('DPOP'),
+                riskEngine: isFeatureEnabled('RISK_ENGINE'),
+                faceAuth: isFeatureEnabled('FACE_AUTH'),
+                deviceQuorum: isFeatureEnabled('DEVICE_QUORUM'),
+            },
+        });
+    } catch (error) {
+        logger.error('Safety status error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching safety status' });
+    }
+});
+
+router.post('/admin/safety/reset', ...requireAdminSafe, async (req, res) => {
+    try {
+        const reason = String(req.body?.reason || 'manual admin reset').trim();
+        resetSafetyGuard(reason);
+        return res.json({
+            success: true,
+            message: 'Safety guard reset successfully',
+            safety: getSafetySnapshot(),
+        });
+    } catch (error) {
+        logger.error('Safety reset error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error resetting safety guard' });
+    }
+});
+
+router.get('/admin/features', ...requireAdminSafe, async (_req, res) => {
+    try {
+        return res.json({
+            success: true,
+            features: getFeatureFlags(),
+        });
+    } catch (error) {
+        logger.error('Feature list error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching feature flags' });
+    }
+});
+
+router.put('/admin/features/:featureKey', ...requireAdminSafe, async (req, res) => {
+    try {
+        const featureKey = String(req.params.featureKey || '').trim().toUpperCase();
+        const enabled = Boolean(req.body?.enabled);
+        const updated = setFeatureFlag(featureKey, enabled);
+        if (!updated) {
+            return res.status(400).json({ success: false, message: 'Unknown feature key' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Feature flag updated successfully',
+            features: getFeatureFlags(),
+        });
+    } catch (error) {
+        logger.error('Feature update error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating feature flag' });
+    }
+});
+
 router.put('/update-password/:username', requireAuth, authLimiter, async (req, res) => {
     const { currentPassword, newPassword } = req.body || {};
     const username = normalizeUsername(req.params.username);
@@ -425,7 +814,6 @@ router.put('/update-password/:username', requireAuth, authLimiter, async (req, r
         await user.save();
 
         clearRefreshTokenCookie(res);
-
         return res.json({ success: true, message: 'Password updated successfully. Please login again.' });
     } catch (error) {
         logger.error('Error updating password', { error: error.message });
@@ -433,7 +821,6 @@ router.put('/update-password/:username', requireAuth, authLimiter, async (req, r
     }
 });
 
-// PUT: Update name by username
 router.put('/update-name/:username', requireAuth, async (req, res) => {
     const { newName } = req.body || {};
     const username = normalizeUsername(req.params.username);
@@ -470,8 +857,7 @@ router.put('/update-name/:username', requireAuth, async (req, res) => {
     }
 });
 
-// DELETE: User by username or email
-router.delete('/delete-user/:usernameOrEmail', requireAuth, requireRole(['admin']), async (req, res) => {
+router.delete('/delete-user/:usernameOrEmail', ...requireAdminSafe, async (req, res) => {
     try {
         const identifier = String(req.params.usernameOrEmail || '').trim().toLowerCase();
         const user = await User.findOneAndDelete({
@@ -492,8 +878,7 @@ router.delete('/delete-user/:usernameOrEmail', requireAuth, requireRole(['admin'
     }
 });
 
-// Route to expose metrics
-router.get('/metrics', requireAuth, requireRole(['admin']), async (req, res) => {
+router.get('/metrics', ...requireAdminSafe, async (req, res) => {
     res.set('Content-Type', metricsRegistry.contentType);
     res.end(await metricsRegistry.metrics());
 });

@@ -32,6 +32,28 @@ REFRESH_TOKEN_TTL_DAYS=7
 BCRYPT_ROUNDS=12
 CORS_ORIGINS=http://localhost:3000
 LOKI_HOST=http://49.121.3.2:3100
+AUTH_TEST_MODE=true
+BREAK_GLASS_ADMIN_TOKEN=<long_random_break_glass_token>
+BREAK_GLASS_USERNAME=breakglass-admin
+BREAK_GLASS_APP_ID=
+ADMIN_IP_ALLOWLIST=127.0.0.1,::1
+AUTH_GUARD_WINDOW_MS=300000
+AUTH_GUARD_MIN_REQUESTS=20
+AUTH_GUARD_MAX_FAILURE_RATE=0.45
+AUTH_GUARD_COOLDOWN_MS=300000
+FEATURE_PASSKEY=false
+FEATURE_DPOP=false
+FEATURE_RISK_ENGINE=true
+FEATURE_FACE_AUTH=false
+FEATURE_DEVICE_QUORUM=false
+```
+
+This service no longer ships with hardcoded apps/projects. Admin must create apps using `POST /api/users/apps` and assign them to users.
+
+`LOKI_HOST` is optional. If you don’t use Loki, comment it out in `.env`:
+
+```env
+# LOKI_HOST=
 ```
 
 ## Deployment
@@ -79,11 +101,55 @@ sudo docker run -d --name jaeger \
 | Endpoint                | Method | Description                      |
 |-------------------------|--------|----------------------------------|
 | `/api/users/register`   | POST   | Registers a new user             |
-| `/api/users/login`      | POST   | Authenticates and issues tokens  |
+| `/api/users/login`      | POST   | Authenticates for a specific `appId` and issues tokens  |
 | `/api/users/auth/refresh` | POST | Rotates refresh token + new access token |
 | `/api/users/logout`     | POST   | Revokes refresh token            |
+| `/api/users/apps`       | GET    | List apps for logged-in user (admin sees all) |
+| `/api/users/apps`       | POST   | Create app (admin) |
+| `/api/users/apps/:appId/status` | PUT | Activate/deactivate app (admin) |
+| `/api/users/apps/:appId/assign/:username` | PUT | Assign app to user (admin) |
+| `/api/users/apps/:appId/unassign/:username` | PUT | Remove app from user (admin) |
+| `/api/users/admin/summary` | GET | Dashboard totals (admin) |
+| `/api/users/admin/users` | GET | List users (admin) |
+| `/api/users/admin/role/:username` | PUT | Set user role to `user` or `admin` |
+| `/api/users/admin/safety/status` | GET | Test safety status, guard metrics, feature flags (admin) |
+| `/api/users/admin/safety/reset` | POST | Reset auth rollback guard (admin) |
+| `/api/users/admin/features` | GET | List active feature flags (admin) |
+| `/api/users/admin/features/:featureKey` | PUT | Enable or disable one feature flag (admin) |
 | `/api/users/metrics`    | GET    | Retrieves metrics (admin + token required) |
 | `/api/users/`           | GET    | Returns Hello World Image        |
+
+### Admin Console
+
+Open the in-app admin console at:
+
+```
+/3vc17cs006
+```
+
+It uses TailwindCSS and calls admin APIs with a Bearer token you paste in the page.
+
+For break-glass testing in `AUTH_TEST_MODE=true`, pass:
+
+```http
+X-Break-Glass-Token: <BREAK_GLASS_ADMIN_TOKEN>
+X-Test-Run-Id: run-2026-03-05-01
+```
+
+### Single Auth For Multiple Apps
+
+Use one auth server and pass `appId` during login:
+
+```json
+POST /api/users/login
+{
+  "email": "user@company.com",
+  "password": "StrongPassword!123",
+  "appId": "your-app-id"
+}
+```
+
+The access token now includes app scope (`appId`) so each app can validate that the token was issued for it.
 
 ## Deployment Images 
 

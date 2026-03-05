@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
     },
     projects: {
         type: [String],
-        default: ['testing'],
+        default: [],
         required: true,
     },
     tokenVersion: {

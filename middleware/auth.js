@@ -1,7 +1,13 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const {
+    hasBreakGlassToken,
+    BREAK_GLASS_USERNAME,
+    BREAK_GLASS_APP_ID,
+} = require('../config/safety');
 
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
+const normalizeAppId = (appId) => String(appId || '').trim().toLowerCase();
 
 const extractBearerToken = (req) => {
     const authHeader = req.headers.authorization || '';
@@ -12,6 +18,19 @@ const extractBearerToken = (req) => {
 };
 
 const requireAuth = async (req, res, next) => {
+    if (hasBreakGlassToken(req)) {
+        const breakGlassProjects = BREAK_GLASS_APP_ID ? [BREAK_GLASS_APP_ID] : [];
+        req.user = {
+            id: 'break-glass',
+            username: BREAK_GLASS_USERNAME,
+            role: 'admin',
+            projects: breakGlassProjects,
+            appId: BREAK_GLASS_APP_ID || null,
+            isBreakGlass: true,
+        };
+        return next();
+    }
+
     if (!ACCESS_TOKEN_SECRET) {
         return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
     }
@@ -33,11 +52,17 @@ const requireAuth = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Session has expired. Please login again.' });
         }
 
+        const userAppIds = (user.projects || []).map(normalizeAppId);
+        if (payload.appId && !userAppIds.includes(normalizeAppId(payload.appId))) {
+            return res.status(403).json({ success: false, message: 'Access to this app has been revoked' });
+        }
+
         req.user = {
             id: user._id.toString(),
             username: user.username,
             role: user.role,
             projects: user.projects,
+            appId: payload.appId || null,
         };
 
         return next();
