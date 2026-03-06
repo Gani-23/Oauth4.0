@@ -33,6 +33,13 @@ PORTFOLIO_DEMO_TRIAL_DAYS=30
 BCRYPT_ROUNDS=12
 CORS_ORIGINS=http://localhost:3000
 LOKI_HOST=http://49.121.3.2:3100
+ADMIN_BOOTSTRAP_ENABLED=true
+ADMIN_BOOTSTRAP_NAME=Platform Admin
+ADMIN_BOOTSTRAP_USERNAME=admin
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com
+ADMIN_BOOTSTRAP_PASSWORD=<strong_password_12_plus_chars>
+ADMIN_BOOTSTRAP_APPS=
+ADMIN_BOOTSTRAP_FORCE_PASSWORD_SYNC=false
 AUTH_TEST_MODE=true
 BREAK_GLASS_ADMIN_TOKEN=<long_random_break_glass_token>
 BREAK_GLASS_USERNAME=breakglass-admin
@@ -50,6 +57,8 @@ FEATURE_DEVICE_QUORUM=false
 ```
 
 This service no longer ships with hardcoded apps/projects. Admin must create apps using `POST /api/users/apps` and assign them to users.
+
+`ADMIN_BOOTSTRAP_*` creates (or upgrades) a permanent admin account at startup so you always have admin credentials for app/user management.
 
 `LOKI_HOST` is optional. If you don’t use Loki, comment it out in `.env`:
 
@@ -116,6 +125,8 @@ sudo docker run -d --name jaeger \
 | `/api/users/apps/:appId/unassign/:username` | PUT | Remove app from user (admin) |
 | `/api/users/admin/summary` | GET | Dashboard totals (admin) |
 | `/api/users/admin/users` | GET | List users (admin) |
+| `/api/users/admin/users/:username/apps` | GET | Get one user + assigned apps + available apps (admin) |
+| `/api/users/admin/users/:username/apps` | PUT | Replace one user's app access list (admin) |
 | `/api/users/admin/role/:username` | PUT | Set user role to `user` or `admin` |
 | `/api/users/admin/safety/status` | GET | Test safety status, guard metrics, feature flags (admin) |
 | `/api/users/admin/safety/reset` | POST | Reset auth rollback guard (admin) |
@@ -153,6 +164,8 @@ POST /api/users/login
   "appId": "your-app-id"
 }
 ```
+
+For the bootstrap admin, `appId` can be omitted and defaults to `admin-console`.
 
 The access token now includes app scope (`appId`) so each app can validate that the token was issued for it.
 

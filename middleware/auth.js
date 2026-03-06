@@ -9,6 +9,7 @@ const {
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
 const normalizeAppId = (appId) => String(appId || '').trim().toLowerCase();
 const normalizeAppList = (appIds) => [...new Set((appIds || []).map(normalizeAppId).filter(Boolean))];
+const ADMIN_CONSOLE_APP_ID = 'admin-console';
 
 const extractBearerToken = (req) => {
     const authHeader = req.headers.authorization || '';
@@ -55,8 +56,12 @@ const requireAuth = async (req, res, next) => {
 
         const userAppIds = (user.projects || []).map(normalizeAppId);
         const tokenScopedApps = normalizeAppList(payload.projects || payload.apps);
-        const effectiveApps = normalizeAppList([...userAppIds, ...tokenScopedApps]);
         const isTrialGrant = payload.trialGrant === true;
+        const effectiveApps = isTrialGrant
+            ? tokenScopedApps
+            : (user.role === 'admin'
+                ? normalizeAppList([ADMIN_CONSOLE_APP_ID, ...userAppIds])
+                : normalizeAppList(userAppIds));
         const normalizedPayloadAppId = normalizeAppId(payload.appId);
 
         if (

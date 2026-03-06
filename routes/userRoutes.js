@@ -35,6 +35,7 @@ const REFRESH_TOKEN_MAX_AGE_MS = REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
 const PORTFOLIO_DEMO_TRIAL_DAYS = Math.max(1, Number(process.env.PORTFOLIO_DEMO_TRIAL_DAYS || 30));
 const PORTFOLIO_DEMO_SOURCE = 'portfolio_pixel_lab';
 const PORTFOLIO_REDEEM_SOURCE = 'portfolio_redeem';
+const ADMIN_CONSOLE_APP_ID = 'admin-console';
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET;
 
@@ -507,15 +508,15 @@ router.post('/login', authGuardMiddleware, authLimiter, async (req, res) => {
             return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
         }
 
-        const requestedAppId = normalizeAppId(appId || project);
-        if (!email || !password || !requestedAppId) {
-            return res.status(400).json({ success: false, message: 'Missing email, password, or appId' });
+        const requestedAppInput = normalizeAppId(appId || project);
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Missing email or password' });
         }
 
         const normalizedEmail = normalizeEmail(email);
 
         const user = await User.findOne({ email: normalizedEmail })
-            .select('+password +refreshTokenHash +refreshTokenExpiresAt tokenVersion');
+            .select('username role projects tokenVersion +password +refreshTokenHash +refreshTokenExpiresAt');
 
         if (!user) {
             recordAuthAttempt(false, 'login');
@@ -528,15 +529,32 @@ router.post('/login', authGuardMiddleware, authLimiter, async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        const userAppIds = normalizeAppList(user.projects);
-        if (!userAppIds.includes(requestedAppId)) {
-            return res.status(403).json({ success: false, message: "You don't have access to this app" });
+        const requestedAppId = requestedAppInput || (user.role === 'admin' ? ADMIN_CONSOLE_APP_ID : '');
+        if (!requestedAppId) {
+            return res.status(400).json({ success: false, message: 'appId is required for non-admin users' });
         }
 
+        const userAppIds = normalizeAppList(user.projects);
+        const isAdminConsoleLogin = user.role === 'admin' && requestedAppId === ADMIN_CONSOLE_APP_ID;
         const appsMap = await getAppsMap();
-        const targetApp = appsMap.get(requestedAppId);
-        if (!targetApp || targetApp.status !== 'active') {
-            return res.status(403).json({ success: false, message: 'App is not available' });
+        const targetApp = isAdminConsoleLogin
+            ? {
+                appId: ADMIN_CONSOLE_APP_ID,
+                name: 'Admin Console',
+                appUrl: '/3vc17cs006',
+                description: 'Built-in admin console app scope',
+                status: 'active',
+            }
+            : appsMap.get(requestedAppId);
+
+        if (!isAdminConsoleLogin) {
+            if (user.role !== 'admin' && !userAppIds.includes(requestedAppId)) {
+                return res.status(403).json({ success: false, message: "You don't have access to this app" });
+            }
+
+            if (!targetApp || targetApp.status !== 'active') {
+                return res.status(403).json({ success: false, message: 'App is not available' });
+            }
         }
 
         const accessToken = issueAccessToken(user, requestedAppId);
@@ -562,8 +580,8 @@ router.post('/login', authGuardMiddleware, authLimiter, async (req, res) => {
                 id: user._id,
                 username: user.username,
                 role: user.role,
-                apps: userAppIds,
-                projects: userAppIds,
+                apps: user.role === 'admin' ? normalizeAppList([ADMIN_CONSOLE_APP_ID, ...userAppIds]) : userAppIds,
+                projects: user.role === 'admin' ? normalizeAppList([ADMIN_CONSOLE_APP_ID, ...userAppIds]) : userAppIds,
             },
         });
     } catch (error) {
@@ -623,16 +641,28 @@ router.post('/auth/refresh', authGuardMiddleware, authLimiter, async (req, res) 
         }
 
         const userAppIds = normalizeAppList(user.projects);
-        if (!userAppIds.includes(requestedAppId)) {
-            recordAuthAttempt(false, 'refresh');
-            return res.status(403).json({ success: false, message: 'Access to this app has been revoked' });
-        }
-
+        const isAdminConsoleRefresh = user.role === 'admin' && requestedAppId === ADMIN_CONSOLE_APP_ID;
         const appsMap = await getAppsMap();
-        const targetApp = appsMap.get(requestedAppId);
-        if (!targetApp || targetApp.status !== 'active') {
-            recordAuthAttempt(false, 'refresh');
-            return res.status(403).json({ success: false, message: 'App is not available' });
+        const targetApp = isAdminConsoleRefresh
+            ? {
+                appId: ADMIN_CONSOLE_APP_ID,
+                name: 'Admin Console',
+                appUrl: '/3vc17cs006',
+                description: 'Built-in admin console app scope',
+                status: 'active',
+            }
+            : appsMap.get(requestedAppId);
+
+        if (!isAdminConsoleRefresh) {
+            if (user.role !== 'admin' && !userAppIds.includes(requestedAppId)) {
+                recordAuthAttempt(false, 'refresh');
+                return res.status(403).json({ success: false, message: 'Access to this app has been revoked' });
+            }
+
+            if (!targetApp || targetApp.status !== 'active') {
+                recordAuthAttempt(false, 'refresh');
+                return res.status(403).json({ success: false, message: 'App is not available' });
+            }
         }
 
         const newRefreshToken = issueRefreshToken(user, requestedAppId);
@@ -1075,6 +1105,87 @@ router.get('/admin/users', ...requireAdminSafe, async (req, res) => {
     } catch (error) {
         logger.error('Admin users error', { error: error.message });
         return res.status(500).json({ success: false, message: 'Error fetching users' });
+    }
+});
+
+router.get('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) => {
+    try {
+        const username = normalizeUsername(req.params.username);
+        if (!username) {
+            return res.status(400).json({ success: false, message: 'username is required' });
+        }
+
+        const user = await User.findOne({ username })
+            .select('name username email role projects')
+            .lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const appsMap = await getAppsMap({ includeInactive: true });
+        return res.json({
+            success: true,
+            user,
+            assignedApps: normalizeAppList(user.projects),
+            availableApps: [...appsMap.values()],
+        });
+    } catch (error) {
+        logger.error('Admin get user apps error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching user apps' });
+    }
+});
+
+router.put('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) => {
+    try {
+        const username = normalizeUsername(req.params.username);
+        if (!username) {
+            return res.status(400).json({ success: false, message: 'username is required' });
+        }
+
+        const rawApps = Array.isArray(req.body?.apps)
+            ? req.body.apps
+            : String(req.body?.apps || req.body?.projects || '')
+                .split(',')
+                .map((appId) => appId.trim())
+                .filter(Boolean);
+        const requestedApps = normalizeAppList(rawApps).filter((appId) => appId !== ADMIN_CONSOLE_APP_ID);
+
+        const appsMap = await getAppsMap({ includeInactive: true });
+        const availableAppIds = new Set([...appsMap.keys()]);
+        const invalidAppIds = requestedApps.filter((appId) => !availableAppIds.has(appId));
+        if (invalidAppIds.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid appId(s): ${invalidAppIds.join(', ')}`,
+            });
+        }
+
+        const updatedUser = await User.findOneAndUpdate(
+            { username },
+            {
+                $set: {
+                    projects: requestedApps,
+                    refreshTokenHash: null,
+                    refreshTokenExpiresAt: null,
+                },
+                $inc: { tokenVersion: 1 },
+            },
+            { new: true },
+        ).select('name username email role projects');
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'User app access updated successfully',
+            user: updatedUser,
+            apps: normalizeAppList(updatedUser.projects),
+        });
+    } catch (error) {
+        logger.error('Admin set user apps error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating user app access' });
     }
 });
 

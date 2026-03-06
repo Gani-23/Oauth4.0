@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const ProductRoutes = require('./routes/ProductRoutes');
 const adminConsoleRoute = require('./routes/adminConsoleRoute');
+const { ensureBootstrapAdmin } = require('./config/adminBootstrap');
 const morgan = require('morgan');
 const serverless = require('serverless-http'); // This will help adapt your Express app to work on Vercel.
 const { attachTestRunId } = require('./config/safety');
@@ -24,9 +25,6 @@ const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Break-Glass-Token', 'X-Test-Run-Id'],
 };
-
-// Connect to MongoDB
-connectDB();
 
 // Middleware to parse JSON bodies
 app.use(express.json({ limit: '1mb' }));
@@ -57,9 +55,23 @@ app.use('/api/users', userRoutes);
 app.use('/api/products', ProductRoutes);
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+
+const start = async () => {
+    await connectDB();
+    await ensureBootstrapAdmin();
+
+    if (require.main === module) {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    }
+};
+
+start().catch((error) => {
+    console.error('Failed to start server:', error.message);
+    if (require.main === module) {
+        process.exit(1);
+    }
 });
 
-
-module.exports.handler = serverless(app);  // Expose the handler for serverless deployment
+module.exports.handler = serverless(app); // Expose the handler for serverless deployment
