@@ -127,6 +127,10 @@ sudo docker run -d --name jaeger \
 | `/api/users/admin/users` | GET | List users (admin) |
 | `/api/users/admin/users/:username/apps` | GET | Get one user + assigned apps + available apps (admin) |
 | `/api/users/admin/users/:username/apps` | PUT | Replace one user's app access list (admin) |
+| `/api/users/admin/personal-token` | GET | List your persistent admin token(s) |
+| `/api/users/admin/personal-token/rotate` | POST | Revoke old + issue new persistent admin bearer token |
+| `/api/users/admin/personal-token` | DELETE | Revoke all persistent admin bearer token(s) |
+| `/api/users/admin/personal-token/:tokenId` | DELETE | Revoke one persistent admin bearer token |
 | `/api/users/admin/role/:username` | PUT | Set user role to `user` or `admin` |
 | `/api/users/admin/safety/status` | GET | Test safety status, guard metrics, feature flags (admin) |
 | `/api/users/admin/safety/reset` | POST | Reset auth rollback guard (admin) |
@@ -168,6 +172,12 @@ POST /api/users/login
 For the bootstrap admin, `appId` can be omitted and defaults to `admin-console`.
 
 The access token now includes app scope (`appId`) so each app can validate that the token was issued for it.
+
+## Persistent Admin Bearer Token
+
+You can generate one long-lived admin bearer token (revocable/rotatable) for always-on admin access.
+
+See: `ADMIN_BEARER_TOKEN_README.md`
 
 ### Portfolio Pixel Lab Demo Claim
 

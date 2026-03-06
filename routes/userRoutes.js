@@ -10,6 +10,7 @@ const LokiTransport = require('winston-loki');
 const User = require('../models/User');
 const App = require('../models/App');
 const TrialLicenseGrant = require('../models/TrialLicenseGrant');
+const AdminPersonalToken = require('../models/AdminPersonalToken');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
     AUTH_TEST_MODE,
@@ -172,6 +173,23 @@ const issueTrialLicenseToken = ({
     },
     ACCESS_TOKEN_SECRET,
     { expiresIn },
+);
+
+const issuePersistentAdminToken = ({
+    user,
+    tokenId,
+}) => jwt.sign(
+    {
+        sub: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        appId: ADMIN_CONSOLE_APP_ID,
+        projects: [ADMIN_CONSOLE_APP_ID],
+        pat: true,
+        patId: tokenId,
+    },
+    ACCESS_TOKEN_SECRET,
+    { audience: ADMIN_CONSOLE_APP_ID },
 );
 
 const decodeBase64Json = (value) => {
@@ -1105,6 +1123,139 @@ router.get('/admin/users', ...requireAdminSafe, async (req, res) => {
     } catch (error) {
         logger.error('Admin users error', { error: error.message });
         return res.status(500).json({ success: false, message: 'Error fetching users' });
+    }
+});
+
+router.get('/admin/personal-token', ...requireAdminSafe, async (req, res) => {
+    try {
+        const tokens = await AdminPersonalToken.find({
+            userId: req.user.id,
+        })
+            .select('tokenId label revokedAt revokedReason lastUsedAt lastUsedIp createdAt updatedAt')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const activeTokens = tokens.filter((token) => !token.revokedAt);
+        return res.json({
+            success: true,
+            total: tokens.length,
+            activeCount: activeTokens.length,
+            tokens,
+        });
+    } catch (error) {
+        logger.error('Admin personal token list error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error loading admin personal tokens' });
+    }
+});
+
+router.post('/admin/personal-token/rotate', ...requireAdminSafe, async (req, res) => {
+    try {
+        if (!ACCESS_TOKEN_SECRET) {
+            return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
+        }
+
+        const label = String(req.body?.label || 'primary-admin-token').trim() || 'primary-admin-token';
+        const revokeReason = String(req.body?.reason || 'rotated by admin').trim() || 'rotated by admin';
+        const now = new Date();
+
+        const revokeResult = await AdminPersonalToken.updateMany(
+            { userId: req.user.id, revokedAt: null },
+            { $set: { revokedAt: now, revokedReason: revokeReason } },
+        );
+
+        const user = await User.findById(req.user.id).select('username role projects tokenVersion');
+        if (!user || user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Only admin users can generate persistent admin token' });
+        }
+
+        const tokenId = `apat-${crypto.randomUUID()}`;
+        const adminToken = issuePersistentAdminToken({
+            user,
+            tokenId,
+        });
+
+        await AdminPersonalToken.create({
+            userId: user._id,
+            username: user.username,
+            tokenId,
+            label: label.slice(0, 100),
+            tokenHash: hashToken(adminToken),
+            lastUsedAt: now,
+            lastUsedIp: String(req.ip || ''),
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: 'Persistent admin token rotated successfully. Store this token securely.',
+            revokedCount: revokeResult.modifiedCount || 0,
+            tokenType: 'Bearer',
+            adminToken,
+            tokenId,
+            audience: ADMIN_CONSOLE_APP_ID,
+            note: 'This token does not expire automatically. Revoke immediately if compromised.',
+        });
+    } catch (error) {
+        logger.error('Admin personal token rotate error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error rotating persistent admin token' });
+    }
+});
+
+router.delete('/admin/personal-token', ...requireAdminSafe, async (req, res) => {
+    try {
+        const revokeReason = String(req.body?.reason || 'manual revoke by admin').trim() || 'manual revoke by admin';
+        const revokeAt = new Date();
+        const result = await AdminPersonalToken.updateMany(
+            { userId: req.user.id, revokedAt: null },
+            { $set: { revokedAt: revokeAt, revokedReason: revokeReason } },
+        );
+
+        return res.json({
+            success: true,
+            message: 'All active persistent admin tokens revoked',
+            revokedCount: result.modifiedCount || 0,
+        });
+    } catch (error) {
+        logger.error('Admin personal token revoke error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error revoking persistent admin tokens' });
+    }
+});
+
+router.delete('/admin/personal-token/:tokenId', ...requireAdminSafe, async (req, res) => {
+    try {
+        const tokenId = String(req.params.tokenId || '').trim();
+        if (!tokenId) {
+            return res.status(400).json({ success: false, message: 'tokenId is required' });
+        }
+
+        const revokeReason = String(req.body?.reason || 'manual revoke by admin').trim() || 'manual revoke by admin';
+        const updated = await AdminPersonalToken.findOneAndUpdate(
+            {
+                userId: req.user.id,
+                tokenId,
+                revokedAt: null,
+            },
+            {
+                $set: {
+                    revokedAt: new Date(),
+                    revokedReason: revokeReason,
+                },
+            },
+            { new: true },
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Active personal token not found' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Persistent admin token revoked',
+            tokenId: updated.tokenId,
+            revokedAt: updated.revokedAt,
+        });
+    } catch (error) {
+        logger.error('Admin personal token revoke by id error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error revoking persistent admin token' });
     }
 });
 

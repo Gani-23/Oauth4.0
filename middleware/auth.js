@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
+const AdminPersonalToken = require('../models/AdminPersonalToken');
 const {
     hasBreakGlassToken,
     BREAK_GLASS_USERNAME,
@@ -10,6 +12,7 @@ const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
 const normalizeAppId = (appId) => String(appId || '').trim().toLowerCase();
 const normalizeAppList = (appIds) => [...new Set((appIds || []).map(normalizeAppId).filter(Boolean))];
 const ADMIN_CONSOLE_APP_ID = 'admin-console';
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const extractBearerToken = (req) => {
     const authHeader = req.headers.authorization || '';
@@ -50,8 +53,38 @@ const requireAuth = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Invalid authentication token' });
         }
 
-        if (payload.tokenVersion !== user.tokenVersion) {
+        const isPersonalAdminToken = payload.pat === true && typeof payload.patId === 'string' && payload.patId.trim();
+        if (!isPersonalAdminToken && payload.tokenVersion !== user.tokenVersion) {
             return res.status(401).json({ success: false, message: 'Session has expired. Please login again.' });
+        }
+
+        if (isPersonalAdminToken) {
+            if (user.role !== 'admin') {
+                return res.status(403).json({ success: false, message: 'Persistent token is only valid for admin accounts' });
+            }
+
+            const normalizedPatId = String(payload.patId).trim();
+            const tokenHash = hashToken(token);
+            const activeToken = await AdminPersonalToken.findOne({
+                userId: user._id,
+                tokenId: normalizedPatId,
+                tokenHash,
+                revokedAt: null,
+            });
+
+            if (!activeToken) {
+                return res.status(401).json({ success: false, message: 'Persistent admin token has been revoked or is invalid' });
+            }
+
+            await AdminPersonalToken.updateOne(
+                { _id: activeToken._id },
+                {
+                    $set: {
+                        lastUsedAt: new Date(),
+                        lastUsedIp: String(req.ip || ''),
+                    },
+                },
+            );
         }
 
         const userAppIds = (user.projects || []).map(normalizeAppId);
@@ -80,6 +113,8 @@ const requireAuth = async (req, res, next) => {
             projects: effectiveApps,
             appId: payload.appId || null,
             isTrialGrant,
+            isPersonalAdminToken,
+            personalAdminTokenId: isPersonalAdminToken ? String(payload.patId).trim() : null,
         };
 
         return next();
