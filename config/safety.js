@@ -188,6 +188,10 @@ const authGuardMiddleware = (req, res, next) => {
 };
 
 const adminIpGuard = (req, res, next) => {
+    if (hasBreakGlassToken(req)) {
+        return next();
+    }
+
     if (ADMIN_IP_ALLOWLIST.length === 0) {
         return next();
     }

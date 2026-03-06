@@ -156,6 +156,8 @@ X-Break-Glass-Token: <BREAK_GLASS_ADMIN_TOKEN>
 X-Test-Run-Id: run-2026-03-05-01
 ```
 
+When a valid `X-Break-Glass-Token` is provided, admin IP allowlist checks are bypassed for emergency access.
+
 ### Single Auth For Multiple Apps
 
 Use one auth server and pass `appId` during login:
