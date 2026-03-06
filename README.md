@@ -29,6 +29,7 @@ JWT_ACCESS_SECRET=<long_random_secret>
 JWT_REFRESH_SECRET=<long_random_secret>
 ACCESS_TOKEN_TTL=15m
 REFRESH_TOKEN_TTL_DAYS=7
+PORTFOLIO_DEMO_TRIAL_DAYS=30
 BCRYPT_ROUNDS=12
 CORS_ORIGINS=http://localhost:3000
 LOKI_HOST=http://49.121.3.2:3100
@@ -105,6 +106,10 @@ sudo docker run -d --name jaeger \
 | `/api/users/auth/refresh` | POST | Rotates refresh token + new access token |
 | `/api/users/logout`     | POST   | Revokes refresh token            |
 | `/api/users/apps`       | GET    | List apps for logged-in user (admin sees all) |
+| `/api/users/licenses/portfolio-demo/claim` | POST | Claim/reuse 30-day Pixel Lab demo token (auth required) |
+| `/api/users/licenses/redeem` | POST | Shared redeem endpoint for trial license token issuance |
+| `/api/users/licenses/me` | GET | Get current user's active trial grants |
+| `/api/users/licenses/validate` | GET | Validate bearer license token (optionally for one appId) |
 | `/api/users/apps`       | POST   | Create app (admin) |
 | `/api/users/apps/:appId/status` | PUT | Activate/deactivate app (admin) |
 | `/api/users/apps/:appId/assign/:username` | PUT | Assign app to user (admin) |
@@ -150,6 +155,59 @@ POST /api/users/login
 ```
 
 The access token now includes app scope (`appId`) so each app can validate that the token was issued for it.
+
+### Portfolio Pixel Lab Demo Claim
+
+Use the demo token generated from the portfolio Pixel Lab route to claim a signed 30-day trial token that can access all currently active apps.
+
+```http
+POST /api/users/licenses/portfolio-demo/claim
+Authorization: Bearer <normal access token>
+Content-Type: application/json
+
+{
+  "pixelDemoToken": "<copied demo token from portfolio>"
+}
+```
+
+Response includes:
+
+- `licenseToken` (signed JWT, 30-day)
+- `expiresAt`
+- `apps` (active app IDs included in trial scope)
+
+This endpoint reuses an existing active trial for the same user instead of extending it repeatedly.
+
+### Shared Redeem Endpoint (All Apps)
+
+Use one redeem flow for all app clients:
+
+```http
+POST /api/users/licenses/redeem
+Authorization: Bearer <normal access token>
+Content-Type: application/json
+
+{
+  "redeemCode": "<pixel-lab-demo-token>",
+  "scope": "all"
+}
+```
+
+Optional request fields:
+
+- `source`: defaults to `portfolio_redeem`
+- `scope`: `all` (default), `single`, or `custom`
+- `appId`: required when `scope=single`
+- `appIds`: array required when `scope=custom`
+
+This returns a signed JWT `licenseToken` valid for up to `PORTFOLIO_DEMO_TRIAL_DAYS` and scoped to selected app(s).
+
+Validate that token from any client app:
+
+```http
+GET /api/users/licenses/validate?appId=agentbuddy
+Authorization: Bearer <licenseToken>
+```
 
 ## Deployment Images 
 

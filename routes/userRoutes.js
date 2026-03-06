@@ -9,6 +9,7 @@ const winston = require('winston');
 const LokiTransport = require('winston-loki');
 const User = require('../models/User');
 const App = require('../models/App');
+const TrialLicenseGrant = require('../models/TrialLicenseGrant');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
     AUTH_TEST_MODE,
@@ -31,6 +32,9 @@ const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_TTL || '15m';
 const REFRESH_TOKEN_TTL_DAYS = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 7);
 const REFRESH_TOKEN_EXPIRES_IN = `${REFRESH_TOKEN_TTL_DAYS}d`;
 const REFRESH_TOKEN_MAX_AGE_MS = REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
+const PORTFOLIO_DEMO_TRIAL_DAYS = Math.max(1, Number(process.env.PORTFOLIO_DEMO_TRIAL_DAYS || 30));
+const PORTFOLIO_DEMO_SOURCE = 'portfolio_pixel_lab';
+const PORTFOLIO_REDEEM_SOURCE = 'portfolio_redeem';
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET;
 
@@ -146,6 +150,166 @@ const issueRefreshToken = (user, appId) => jwt.sign(
     REFRESH_TOKEN_SECRET,
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN },
 );
+
+const issueTrialLicenseToken = ({
+    user,
+    appIds,
+    expiresIn,
+    tokenId,
+    source,
+}) => jwt.sign(
+    {
+        sub: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        projects: appIds,
+        tokenVersion: user.tokenVersion,
+        appId: '*',
+        trialGrant: true,
+        trialSource: source,
+        trialTokenId: tokenId,
+    },
+    ACCESS_TOKEN_SECRET,
+    { expiresIn },
+);
+
+const decodeBase64Json = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const padded = raw.padEnd(raw.length + ((4 - (raw.length % 4)) % 4), '=');
+        const decoded = Buffer.from(padded, 'base64').toString('utf8');
+        return JSON.parse(decoded);
+    } catch {
+        return null;
+    }
+};
+
+const parsePixelDemoToken = (token) => {
+    const parsed = decodeBase64Json(token);
+    if (!parsed || typeof parsed !== 'object') {
+        return { ok: false, message: 'Invalid demo token format' };
+    }
+
+    const mode = String(parsed.mode || '').trim();
+    const id = String(parsed.id || '').trim();
+    const expRaw = Number(parsed.exp);
+    if (mode !== 'PIXEL_LAB_DEMO' || !id || !Number.isFinite(expRaw)) {
+        return { ok: false, message: 'Demo token payload is incomplete' };
+    }
+
+    if (expRaw <= Date.now()) {
+        return { ok: false, message: 'Demo token expired. Scan and activate again.' };
+    }
+
+    return {
+        ok: true,
+        id,
+        mode,
+        expRaw,
+    };
+};
+
+const resolveRedeemSource = (rawSource) => {
+    const normalizedSource = String(rawSource || '').trim().toLowerCase();
+    if (!normalizedSource || normalizedSource === 'pixel_lab' || normalizedSource === 'portfolio_pixel_lab') {
+        return PORTFOLIO_REDEEM_SOURCE;
+    }
+    return normalizedSource;
+};
+
+const resolveRedeemScope = (rawScope) => {
+    const normalizedScope = String(rawScope || '').trim().toLowerCase();
+    if (['single', 'app', 'one'].includes(normalizedScope)) {
+        return 'single';
+    }
+    if (['custom', 'list', 'multi'].includes(normalizedScope)) {
+        return 'custom';
+    }
+    return 'all';
+};
+
+const normalizeRequestedApps = ({ scope, appId, appIds }, activeAppIdsSet) => {
+    if (scope === 'single') {
+        const requested = normalizeAppId(appId);
+        if (!requested) {
+            return { ok: false, message: 'appId is required for single scope', appIds: [] };
+        }
+        if (!activeAppIdsSet.has(requested)) {
+            return { ok: false, message: `Requested app '${requested}' is not active or does not exist`, appIds: [] };
+        }
+        return { ok: true, appIds: [requested] };
+    }
+
+    if (scope === 'custom') {
+        const normalized = normalizeAppList(appIds).filter((candidate) => activeAppIdsSet.has(candidate));
+        if (normalized.length === 0) {
+            return { ok: false, message: 'No valid active apps found in appIds', appIds: [] };
+        }
+        return { ok: true, appIds: normalized };
+    }
+
+    return { ok: true, appIds: [...activeAppIdsSet] };
+};
+
+const issueOrReuseTrialGrant = async ({
+    user,
+    source,
+    claimRef,
+    appIds,
+}) => {
+    const now = Date.now();
+    let grant = await TrialLicenseGrant.findOne({
+        userId: user._id,
+        source,
+        revokedAt: null,
+        expiresAt: { $gt: new Date(now) },
+    }).sort({ expiresAt: -1 });
+
+    let created = false;
+    let expiresAt = grant?.expiresAt
+        ? new Date(grant.expiresAt)
+        : new Date(now + (PORTFOLIO_DEMO_TRIAL_DAYS * 24 * 60 * 60 * 1000));
+    let tokenId = grant?.tokenId || `trial-${crypto.randomUUID()}`;
+
+    if (!grant) {
+        grant = await TrialLicenseGrant.create({
+            userId: user._id,
+            username: user.username,
+            source,
+            tokenId,
+            claimRef,
+            apps: appIds,
+            expiresAt,
+        });
+        created = true;
+    } else {
+        grant.claimRef = claimRef;
+        grant.apps = appIds;
+        await grant.save();
+        tokenId = grant.tokenId;
+        expiresAt = new Date(grant.expiresAt);
+    }
+
+    const expiresInSeconds = Math.max(60, Math.floor((expiresAt.getTime() - now) / 1000));
+    const licenseToken = issueTrialLicenseToken({
+        user,
+        appIds,
+        expiresIn: `${expiresInSeconds}s`,
+        tokenId,
+        source,
+    });
+
+    return {
+        created,
+        expiresAt,
+        tokenId,
+        licenseToken,
+    };
+};
 
 const setRefreshTokenCookie = (res, refreshToken) => {
     res.cookie('refreshToken', refreshToken, {
@@ -541,6 +705,208 @@ router.get('/apps', requireAuth, async (req, res) => {
     } catch (error) {
         logger.error('Get apps error', { error: error.message });
         return res.status(500).json({ success: false, message: 'Error retrieving apps' });
+    }
+});
+
+router.post('/licenses/portfolio-demo/claim', requireAuth, authGuardMiddleware, async (req, res) => {
+    try {
+        if (!ACCESS_TOKEN_SECRET) {
+            return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
+        }
+
+        const incomingToken = String(req.body?.pixelDemoToken || req.body?.demoToken || '').trim();
+        const parsedDemoToken = parsePixelDemoToken(incomingToken);
+        if (!parsedDemoToken.ok) {
+            return res.status(400).json({ success: false, message: parsedDemoToken.message });
+        }
+
+        const user = await User.findById(req.user.id)
+            .select('username role projects tokenVersion');
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid authentication token' });
+        }
+
+        const appsMap = await getAppsMap();
+        const appIds = normalizeAppList([...appsMap.keys()]);
+        if (appIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No active apps are configured. Admin must create and activate apps first.',
+            });
+        }
+
+        const {
+            created,
+            expiresAt,
+            licenseToken,
+        } = await issueOrReuseTrialGrant({
+            user,
+            source: PORTFOLIO_DEMO_SOURCE,
+            claimRef: parsedDemoToken.id,
+            appIds,
+        });
+
+        return res.json({
+            success: true,
+            mode: 'PORTFOLIO_PIXEL_LAB',
+            created,
+            message: created
+                ? `30-day demo access activated for ${appIds.length} app(s).`
+                : 'Existing demo access reused for this account.',
+            tokenType: 'Bearer',
+            licenseToken,
+            expiresAt: expiresAt.toISOString(),
+            apps: appIds,
+        });
+    } catch (error) {
+        logger.error('Portfolio demo claim error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error issuing demo license token' });
+    }
+});
+
+router.post('/licenses/redeem', requireAuth, authGuardMiddleware, async (req, res) => {
+    try {
+        if (!ACCESS_TOKEN_SECRET) {
+            return res.status(500).json({ success: false, message: 'Server auth configuration is missing' });
+        }
+
+        const redeemCode = String(req.body?.redeemCode || req.body?.pixelDemoToken || req.body?.demoToken || '').trim();
+        if (!redeemCode) {
+            return res.status(400).json({ success: false, message: 'redeemCode is required' });
+        }
+
+        const source = resolveRedeemSource(req.body?.source);
+        const scope = resolveRedeemScope(req.body?.scope);
+        const parsedDemoToken = parsePixelDemoToken(redeemCode);
+        if (!parsedDemoToken.ok) {
+            return res.status(400).json({ success: false, message: parsedDemoToken.message });
+        }
+
+        const user = await User.findById(req.user.id)
+            .select('username role projects tokenVersion');
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid authentication token' });
+        }
+
+        const appsMap = await getAppsMap();
+        const activeAppIdsSet = new Set(normalizeAppList([...appsMap.keys()]));
+        if (activeAppIdsSet.size === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No active apps are configured. Admin must create and activate apps first.',
+            });
+        }
+
+        const requestedApps = normalizeRequestedApps({
+            scope,
+            appId: req.body?.appId,
+            appIds: req.body?.appIds,
+        }, activeAppIdsSet);
+
+        if (!requestedApps.ok) {
+            return res.status(400).json({ success: false, message: requestedApps.message });
+        }
+
+        const {
+            created,
+            expiresAt,
+            licenseToken,
+        } = await issueOrReuseTrialGrant({
+            user,
+            source,
+            claimRef: parsedDemoToken.id,
+            appIds: requestedApps.appIds,
+        });
+
+        return res.json({
+            success: true,
+            mode: 'REDEEM_TRIAL',
+            source,
+            scope,
+            created,
+            message: created
+                ? `Trial redeemed for ${requestedApps.appIds.length} app(s).`
+                : 'Existing trial reused for this account.',
+            tokenType: 'Bearer',
+            licenseToken,
+            expiresAt: expiresAt.toISOString(),
+            apps: requestedApps.appIds,
+        });
+    } catch (error) {
+        logger.error('License redeem error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error redeeming license token' });
+    }
+});
+
+router.get('/licenses/me', requireAuth, async (req, res) => {
+    try {
+        const now = new Date();
+        const grants = await TrialLicenseGrant.find({
+            userId: req.user.id,
+            revokedAt: null,
+            expiresAt: { $gt: now },
+        })
+            .sort({ expiresAt: -1 })
+            .lean();
+
+        return res.json({
+            success: true,
+            user: {
+                id: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                isTrialGrant: Boolean(req.user.isTrialGrant),
+            },
+            activeTrialCount: grants.length,
+            grants: grants.map((grant) => ({
+                id: grant._id,
+                source: grant.source,
+                tokenId: grant.tokenId,
+                apps: normalizeAppList(grant.apps),
+                claimRef: grant.claimRef || '',
+                expiresAt: grant.expiresAt,
+                createdAt: grant.createdAt,
+                updatedAt: grant.updatedAt,
+            })),
+        });
+    } catch (error) {
+        logger.error('Get licenses me error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error fetching license status' });
+    }
+});
+
+router.get('/licenses/validate', requireAuth, async (req, res) => {
+    try {
+        const requestedAppId = normalizeAppId(req.query?.appId);
+        const scopedApps = normalizeAppList(req.user.projects);
+        const appAllowed = !requestedAppId || scopedApps.includes(requestedAppId);
+
+        if (!appAllowed) {
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                message: `Token scope does not include app '${requestedAppId}'.`,
+                apps: scopedApps,
+            });
+        }
+
+        return res.json({
+            success: true,
+            valid: true,
+            message: 'License token is valid.',
+            user: {
+                id: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                isTrialGrant: Boolean(req.user.isTrialGrant),
+            },
+            appId: requestedAppId || null,
+            apps: scopedApps,
+            tokenAppId: req.user.appId || null,
+        });
+    } catch (error) {
+        logger.error('Validate license token error', { error: error.message });
+        return res.status(500).json({ success: false, valid: false, message: 'Error validating token' });
     }
 });
 

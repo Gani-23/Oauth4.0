@@ -8,6 +8,7 @@ const {
 
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET;
 const normalizeAppId = (appId) => String(appId || '').trim().toLowerCase();
+const normalizeAppList = (appIds) => [...new Set((appIds || []).map(normalizeAppId).filter(Boolean))];
 
 const extractBearerToken = (req) => {
     const authHeader = req.headers.authorization || '';
@@ -53,7 +54,17 @@ const requireAuth = async (req, res, next) => {
         }
 
         const userAppIds = (user.projects || []).map(normalizeAppId);
-        if (payload.appId && !userAppIds.includes(normalizeAppId(payload.appId))) {
+        const tokenScopedApps = normalizeAppList(payload.projects || payload.apps);
+        const effectiveApps = normalizeAppList([...userAppIds, ...tokenScopedApps]);
+        const isTrialGrant = payload.trialGrant === true;
+        const normalizedPayloadAppId = normalizeAppId(payload.appId);
+
+        if (
+            payload.appId &&
+            normalizedPayloadAppId !== '*' &&
+            !effectiveApps.includes(normalizedPayloadAppId) &&
+            !isTrialGrant
+        ) {
             return res.status(403).json({ success: false, message: 'Access to this app has been revoked' });
         }
 
@@ -61,8 +72,9 @@ const requireAuth = async (req, res, next) => {
             id: user._id.toString(),
             username: user.username,
             role: user.role,
-            projects: user.projects,
+            projects: effectiveApps,
             appId: payload.appId || null,
+            isTrialGrant,
         };
 
         return next();
