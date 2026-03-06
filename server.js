@@ -15,10 +15,32 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+const CORS_STRICT_ORIGIN_CHECK = String(process.env.CORS_STRICT_ORIGIN_CHECK || 'false').toLowerCase() === 'true';
+const normalizeOrigin = (origin) => String(origin || '').trim().toLowerCase();
 const isOriginAllowed = (origin) => !origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin);
+const isSameOriginRequest = (req) => {
+    const requestOrigin = normalizeOrigin(req.headers.origin);
+    if (!requestOrigin) {
+        return true;
+    }
+
+    const host = String(req.headers.host || '').trim().toLowerCase();
+    if (!host) {
+        return false;
+    }
+
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const proto = forwardedProto || 'https';
+    const computed = `${proto}://${host}`;
+    return requestOrigin === computed;
+};
 
 const corsOptions = {
     origin: (origin, callback) => {
+        if (!CORS_STRICT_ORIGIN_CHECK) {
+            callback(null, true);
+            return;
+        }
         callback(null, isOriginAllowed(origin));
     },
     credentials: true,
@@ -33,6 +55,16 @@ app.set('trust proxy', 1);
 // CORS configuration for production
 app.use(cors(corsOptions));
 app.use((req, res, next) => {
+    if (!CORS_STRICT_ORIGIN_CHECK) {
+        next();
+        return;
+    }
+
+    if (isSameOriginRequest(req)) {
+        next();
+        return;
+    }
+
     if (isOriginAllowed(req.headers.origin)) {
         next();
         return;

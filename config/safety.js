@@ -27,6 +27,7 @@ const AUTH_TEST_MODE = parseBoolean(process.env.AUTH_TEST_MODE, false);
 const BREAK_GLASS_ADMIN_TOKEN = String(process.env.BREAK_GLASS_ADMIN_TOKEN || '').trim();
 const BREAK_GLASS_USERNAME = String(process.env.BREAK_GLASS_USERNAME || 'breakglass-admin').trim().toLowerCase();
 const BREAK_GLASS_APP_ID = String(process.env.BREAK_GLASS_APP_ID || '').trim().toLowerCase();
+const ADMIN_IP_STRICT_MODE = parseBoolean(process.env.ADMIN_IP_STRICT_MODE, false);
 const ADMIN_IP_ALLOWLIST = (process.env.ADMIN_IP_ALLOWLIST || '')
     .split(',')
     .map((ip) => normalizeIp(ip))
@@ -164,7 +165,8 @@ const isGuardPaused = () => {
 const getSafetySnapshot = () => ({
     testMode: AUTH_TEST_MODE,
     breakGlassConfigured: Boolean(BREAK_GLASS_ADMIN_TOKEN),
-    adminIpAllowlistEnabled: ADMIN_IP_ALLOWLIST.length > 0,
+    adminIpStrictMode: ADMIN_IP_STRICT_MODE,
+    adminIpAllowlistEnabled: ADMIN_IP_STRICT_MODE && ADMIN_IP_ALLOWLIST.length > 0,
     adminIpAllowlist: ADMIN_IP_ALLOWLIST,
     guard: {
         ...guardState,
@@ -189,6 +191,10 @@ const authGuardMiddleware = (req, res, next) => {
 
 const adminIpGuard = (req, res, next) => {
     if (hasBreakGlassToken(req)) {
+        return next();
+    }
+
+    if (!ADMIN_IP_STRICT_MODE) {
         return next();
     }
 

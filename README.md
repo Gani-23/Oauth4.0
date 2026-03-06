@@ -33,6 +33,7 @@ PORTFOLIO_DEMO_TRIAL_DAYS=30
 BCRYPT_ROUNDS=12
 CORS_ORIGINS=http://localhost:3000
 LOKI_HOST=http://49.121.3.2:3100
+CORS_STRICT_ORIGIN_CHECK=false
 ADMIN_BOOTSTRAP_ENABLED=true
 ADMIN_BOOTSTRAP_NAME=Platform Admin
 ADMIN_BOOTSTRAP_USERNAME=admin
@@ -44,6 +45,7 @@ AUTH_TEST_MODE=true
 BREAK_GLASS_ADMIN_TOKEN=<long_random_break_glass_token>
 BREAK_GLASS_USERNAME=breakglass-admin
 BREAK_GLASS_APP_ID=
+ADMIN_IP_STRICT_MODE=false
 ADMIN_IP_ALLOWLIST=127.0.0.1,::1
 AUTH_GUARD_WINDOW_MS=300000
 AUTH_GUARD_MIN_REQUESTS=20
@@ -157,6 +159,11 @@ X-Test-Run-Id: run-2026-03-05-01
 ```
 
 When a valid `X-Break-Glass-Token` is provided, admin IP allowlist checks are bypassed for emergency access.
+
+Default behavior is now admin-friendly:
+
+- `ADMIN_IP_STRICT_MODE=false` means admin IP allowlist is not enforced.
+- `CORS_STRICT_ORIGIN_CHECK=false` means origin checks are not hard-blocked (auth + role checks still apply).
 
 ### Single Auth For Multiple Apps
 
