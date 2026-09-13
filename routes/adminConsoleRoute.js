@@ -209,6 +209,7 @@ router.get('/3vc17cs006', (_req, res) => {
                   <th class="text-left p-2.5">Username</th>
                   <th class="text-left p-2.5">Email</th>
                   <th class="text-left p-2.5">Role</th>
+                  <th class="text-left p-2.5">Redeemed / Trial</th>
                   <th class="text-left p-2.5">Apps</th>
                   <th class="text-right p-2.5">Action</th>
                 </tr>
@@ -231,16 +232,95 @@ router.get('/3vc17cs006', (_req, res) => {
           <ul id="appsList" class="space-y-2.5 max-h-96 overflow-auto pr-1"></ul>
         </section>
 
-        <!-- 🛡️ USER APP ACCESS EDITOR -->
+        <!-- 🛡️ USER APP ACCESS & LICENSE MANAGEMENT -->
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <h2 class="font-bold text-base text-slate-200 mb-1">Manage User App Permissions</h2>
-          <p id="manageHint" class="text-xs text-slate-400 mb-3">Select a user to grant or revoke specific app permissions.</p>
+          <div class="flex items-center justify-between mb-1">
+            <h2 class="font-bold text-base text-slate-200">User Apps & License Validity</h2>
+            <span id="manageUserBadge" class="text-xs px-2 py-0.5 rounded font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800 hidden"></span>
+          </div>
+          <p id="manageHint" class="text-xs text-slate-400 mb-3">Select a user to view redeemed trial days, extend validity, or manage app permissions.</p>
           <div class="flex gap-2 mb-3">
-            <input id="manageUsername" type="text" placeholder="username" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
+            <input id="manageUsername" type="text" placeholder="Username or email (e.g. testing7@gmail.com)" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
             <button id="loadUserAppsBtn" type="button" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm">Load</button>
           </div>
-          <div id="userAppsEditor" class="max-h-48 overflow-auto border border-slate-800 rounded-xl p-3 space-y-2 bg-slate-950">
-            <p class="text-xs text-slate-500">No user selected. Click "Manage" next to any user above.</p>
+
+          <!-- PRESENT REDEEMED LICENSE STATUS -->
+          <div id="licenseStatusCard" class="mb-3 p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Redeemed Trial Status</span>
+              <span id="activeGrantStatusBadge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-800 text-slate-400">No user selected</span>
+            </div>
+            <div id="activeGrantDetails" class="hidden space-y-2 text-xs pt-1">
+              <div class="grid grid-cols-2 gap-2 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                <div>
+                  <p class="text-slate-400 text-[10px]">Remaining Period</p>
+                  <p id="grantRemainingDaysText" class="text-base font-bold text-cyan-400 font-mono">-</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-slate-400 text-[10px]">Expiration Date</p>
+                  <p id="grantExpiresAtText" class="text-slate-200 font-mono text-[11px] truncate">-</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                <span>Source: <strong id="grantSourceText" class="text-slate-300 font-mono">-</strong></span>
+                <span>Active Apps: <strong id="grantAppsText" class="text-cyan-300 font-mono">-</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- EXTENSION PERIOD CONTROLS -->
+          <div id="extendLicenseCard" class="mb-3 p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>⚡ Extend License / Trial Period</span>
+              </span>
+              <span class="text-[10px] text-slate-500">Adds onto existing days</span>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Quick Presets</label>
+              <div class="grid grid-cols-6 gap-1">
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="7">+7d</button>
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="14">+14d</button>
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="30">+30d</button>
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="60">+60d</button>
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="90">+90d</button>
+                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-emerald-950/80 border border-emerald-700 hover:border-emerald-400 text-emerald-300 text-xs font-mono font-bold transition-colors" data-days="lifetime">✨ Life</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Target App</label>
+                <select id="extendAppId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                  <option value="agentbuddy">agentbuddy</option>
+                  <option value="*">* (All Apps)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Days to Add</label>
+                <input id="extendDaysInput" type="text" placeholder="30 or lifetime" value="30" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400 font-mono" />
+              </div>
+            </div>
+            <button id="extendLicenseBtn" type="button" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-slate-950 font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow">
+              <span>⚡ Extend License Validity</span>
+            </button>
+            <div id="extendResultBox" class="hidden p-2.5 rounded-lg bg-slate-900 border border-cyan-800/60 text-xs space-y-1.5">
+              <p id="extendResultMsg" class="text-cyan-300 font-medium"></p>
+              <div>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+                  <span>Extended License Token:</span>
+                  <button id="copyExtendedTokenBtn" type="button" class="text-cyan-400 hover:underline">Copy Token</button>
+                </div>
+                <input id="extendedTokenInput" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] font-mono text-slate-300 select-all outline-none" />
+              </div>
+            </div>
+          </div>
+
+          <!-- APP PERMISSIONS CHECKBOXES -->
+          <div class="mb-1.5 flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300">Application Access Permissions</span>
+          </div>
+          <div id="userAppsEditor" class="max-h-36 overflow-auto border border-slate-800 rounded-xl p-3 space-y-2 bg-slate-950">
+            <p class="text-xs text-slate-500">No user selected. Click "Manage" next to any user.</p>
           </div>
           <button id="saveUserAppsBtn" type="button" class="w-full mt-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-xl text-sm transition-colors shadow">
             Save App Permissions
@@ -296,6 +376,22 @@ router.get('/3vc17cs006', (_req, res) => {
     const userAppsEditor = document.getElementById('userAppsEditor');
     const manageHint = document.getElementById('manageHint');
     const manageUsernameInput = document.getElementById('manageUsername');
+    const manageUserBadge = document.getElementById('manageUserBadge');
+
+    const activeGrantStatusBadge = document.getElementById('activeGrantStatusBadge');
+    const activeGrantDetails = document.getElementById('activeGrantDetails');
+    const grantRemainingDaysText = document.getElementById('grantRemainingDaysText');
+    const grantExpiresAtText = document.getElementById('grantExpiresAtText');
+    const grantSourceText = document.getElementById('grantSourceText');
+    const grantAppsText = document.getElementById('grantAppsText');
+
+    const extendAppId = document.getElementById('extendAppId');
+    const extendDaysInput = document.getElementById('extendDaysInput');
+    const extendLicenseBtn = document.getElementById('extendLicenseBtn');
+    const extendResultBox = document.getElementById('extendResultBox');
+    const extendResultMsg = document.getElementById('extendResultMsg');
+    const extendedTokenInput = document.getElementById('extendedTokenInput');
+    const copyExtendedTokenBtn = document.getElementById('copyExtendedTokenBtn');
 
     const genLicenseUserSelect = document.getElementById('genLicenseUserSelect');
     const genLicenseUserCustom = document.getElementById('genLicenseUserCustom');
@@ -312,6 +408,7 @@ router.get('/3vc17cs006', (_req, res) => {
       apps: [],
       users: [],
       selectedUsername: '',
+      selectedUser: null,
       selectedUserApps: [],
     };
 
@@ -462,11 +559,24 @@ router.get('/3vc17cs006', (_req, res) => {
         const rolePill = u.role === 'admin'
           ? 'bg-violet-500/20 text-violet-300 border border-violet-800'
           : 'bg-slate-800 text-slate-300';
+
+        let licensePill = '<span class="text-slate-500 text-[11px]">-</span>';
+        if (u.licenseStatus) {
+          if (u.licenseStatus.isLifetime) {
+            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-700">✨ Lifetime</span>';
+          } else if (u.licenseStatus.hasActiveGrant) {
+            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-700">' + u.licenseStatus.remainingDays + 'd left</span>';
+          } else if (u.licenseStatus.expiresAt) {
+            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-800">Expired</span>';
+          }
+        }
+
         return (
-          '<tr class="hover:bg-slate-900/60 transition-colors">' +
-            '<td class="p-2.5 font-semibold text-slate-200">' + escapeHtml(u.username) + '</td>' +
-            '<td class="p-2.5 text-slate-400 font-sans">' + escapeHtml(u.email) + '</td>' +
+          '<tr class="hover:bg-slate-900/80 transition-colors cursor-pointer" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
+            '<td class="p-2.5 font-semibold text-slate-200 hover:text-cyan-300 font-mono">' + escapeHtml(u.username) + '</td>' +
+            '<td class="p-2.5 text-slate-400 font-sans hover:text-cyan-300">' + escapeHtml(u.email) + '</td>' +
             '<td class="p-2.5"><span class="px-2 py-0.5 rounded text-[11px] ' + rolePill + '">' + escapeHtml(u.role) + '</span></td>' +
+            '<td class="p-2.5">' + licensePill + '</td>' +
             '<td class="p-2.5 text-cyan-300 text-[11px]">' + escapeHtml((u.projects || []).join(', ') || '-') + '</td>' +
             '<td class="p-2.5 text-right">' +
               '<button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">Manage</button>' +
@@ -521,6 +631,16 @@ router.get('/3vc17cs006', (_req, res) => {
           return '<option value="' + escapeHtml(a.appId) + '">' + escapeHtml(a.appId) + ' (' + escapeHtml(a.name) + ')</option>';
         }).join('');
       if (curApp) genLicenseAppSelect.value = curApp;
+
+      if (extendAppId) {
+        const curExtApp = extendAppId.value;
+        extendAppId.innerHTML = '<option value="agentbuddy">agentbuddy (AgentBuddy)</option>' +
+          '<option value="*">* (All Apps)</option>' +
+          state.apps.map(function (a) {
+            return '<option value="' + escapeHtml(a.appId) + '">' + escapeHtml(a.appId) + ' (' + escapeHtml(a.name) + ')</option>';
+          }).join('');
+        if (curExtApp) extendAppId.value = curExtApp;
+      }
     }
 
     // License Generator Logic
@@ -620,7 +740,42 @@ router.get('/3vc17cs006', (_req, res) => {
       }
     });
 
-    // User App Access Editor
+    // User App Access & License Editor
+    function renderActiveGrantStatus(grant) {
+      if (!grant) {
+        activeGrantStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-800 text-slate-400';
+        activeGrantStatusBadge.textContent = 'No redeemed trial';
+        activeGrantDetails.classList.add('hidden');
+        return;
+      }
+
+      activeGrantDetails.classList.remove('hidden');
+      if (grant.isLifetime) {
+        activeGrantStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-700';
+        activeGrantStatusBadge.textContent = '✨ Lifetime Active';
+        grantRemainingDaysText.textContent = 'Lifetime (Never Expires)';
+        grantRemainingDaysText.className = 'text-base font-bold text-emerald-400 font-mono';
+      } else if (!grant.isExpired) {
+        activeGrantStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-700';
+        activeGrantStatusBadge.textContent = grant.remainingDays + ' Days Active';
+        grantRemainingDaysText.textContent = grant.remainingDays + ' Days (' + grant.remainingHours + 'h remaining)';
+        grantRemainingDaysText.className = 'text-base font-bold text-cyan-400 font-mono';
+      } else {
+        activeGrantStatusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-300 border border-rose-800';
+        activeGrantStatusBadge.textContent = 'Expired';
+        grantRemainingDaysText.textContent = 'Expired';
+        grantRemainingDaysText.className = 'text-base font-bold text-rose-400 font-mono';
+      }
+
+      grantExpiresAtText.textContent = grant.expiresAt ? new Date(grant.expiresAt).toLocaleString() : 'N/A';
+      grantSourceText.textContent = grant.source || 'portfolio_redeem';
+      grantAppsText.textContent = (grant.apps && grant.apps.length > 0) ? grant.apps.join(', ') : 'agentbuddy';
+
+      if (grant.apps && grant.apps[0] && extendAppId) {
+        extendAppId.value = grant.apps[0];
+      }
+    }
+
     function renderUserAppsEditor() {
       if (!state.selectedUsername) {
         userAppsEditor.innerHTML = '<p class="text-slate-500 text-xs">No user selected. Click "Manage" next to any user.</p>';
@@ -643,17 +798,57 @@ router.get('/3vc17cs006', (_req, res) => {
     async function loadUserApps(username) {
       const normalized = String(username || '').trim().toLowerCase();
       if (!normalized) return;
-      statusText.textContent = 'Loading apps for ' + normalized + '...';
+      statusText.textContent = 'Loading apps & license for ' + normalized + '...';
       try {
         const payload = await api('/api/users/admin/users/' + encodeURIComponent(normalized) + '/apps');
         state.selectedUsername = payload.user.username;
+        state.selectedUser = payload.user;
         state.selectedUserApps = payload.assignedApps || [];
         manageUsernameInput.value = state.selectedUsername;
-        manageHint.textContent = 'Editing app access for: ' + state.selectedUsername;
+        manageHint.textContent = 'Managing access & license for: ' + state.selectedUsername + ' (' + (payload.user.email || '') + ')';
+        if (manageUserBadge) {
+          manageUserBadge.textContent = state.selectedUsername;
+          manageUserBadge.classList.remove('hidden');
+        }
         renderUserAppsEditor();
-        statusText.textContent = 'Permissions loaded for ' + state.selectedUsername;
+        renderActiveGrantStatus(payload.activeGrant);
+        statusText.textContent = 'Permissions and license loaded for ' + state.selectedUsername;
       } catch (err) {
         alert('Error: ' + err.message);
+      }
+    }
+
+    async function extendUserLicense(days) {
+      if (!state.selectedUsername) {
+        alert('Select a user first (click Manage next to any user or enter username/email).');
+        return;
+      }
+      const daysValue = days !== undefined ? days : (extendDaysInput ? extendDaysInput.value.trim() : '30');
+      const appId = extendAppId ? extendAppId.value : 'agentbuddy';
+
+      statusText.textContent = 'Extending license for ' + state.selectedUsername + '...';
+      try {
+        const res = await api('/api/users/admin/users/' + encodeURIComponent(state.selectedUsername) + '/licenses/extend', {
+          method: 'POST',
+          body: JSON.stringify({
+            days: daysValue,
+            appId: appId,
+          }),
+        });
+
+        statusText.textContent = res.message;
+        if (extendResultBox && extendResultMsg && extendedTokenInput) {
+          extendResultBox.classList.remove('hidden');
+          extendResultMsg.textContent = res.message;
+          extendedTokenInput.value = res.licenseToken || '';
+        }
+
+        // Reload the user apps and trial details
+        await loadUserApps(state.selectedUsername);
+        // Refresh dashboard users list
+        await loadDashboard();
+      } catch (err) {
+        alert('Extend error: ' + err.message);
       }
     }
 
@@ -706,6 +901,31 @@ router.get('/3vc17cs006', (_req, res) => {
     });
     document.getElementById('saveUserAppsBtn').addEventListener('click', saveUserApps);
 
+    // Preset extend buttons
+    document.querySelectorAll('.preset-extend-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const days = this.getAttribute('data-days');
+        if (extendDaysInput) extendDaysInput.value = days;
+        extendUserLicense(days);
+      });
+    });
+
+    if (extendLicenseBtn) {
+      extendLicenseBtn.addEventListener('click', function () {
+        extendUserLicense();
+      });
+    }
+
+    if (copyExtendedTokenBtn) {
+      copyExtendedTokenBtn.addEventListener('click', function () {
+        if (!extendedTokenInput || !extendedTokenInput.value) return;
+        extendedTokenInput.select();
+        navigator.clipboard.writeText(extendedTokenInput.value);
+        copyExtendedTokenBtn.textContent = 'Copied!';
+        setTimeout(function () { copyExtendedTokenBtn.textContent = 'Copy Token'; }, 2000);
+      });
+    }
+
     document.getElementById('disconnectBtn').addEventListener('click', function () {
       localStorage.removeItem(STORAGE_KEY);
       tokenInput.value = '';
@@ -728,8 +948,11 @@ router.get('/3vc17cs006', (_req, res) => {
     });
 
     usersTable.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-action="manage-user"]');
-      if (btn) loadUserApps(btn.getAttribute('data-username'));
+      const target = e.target.closest('[data-action="manage-user"]');
+      if (target) {
+        const username = target.getAttribute('data-username');
+        if (username) loadUserApps(username);
+      }
     });
 
     appsList.addEventListener('click', async function (e) {

@@ -1115,10 +1115,48 @@ router.get('/admin/users', ...requireAdminSafe, async (req, res) => {
             .limit(limit)
             .lean();
 
+        const userIds = users.map((u) => u._id);
+        const allGrants = await TrialLicenseGrant.find({
+            userId: { $in: userIds },
+            revokedAt: null,
+        })
+            .sort({ expiresAt: -1 })
+            .lean();
+
+        const grantsByUser = new Map();
+        const now = new Date();
+        for (const g of allGrants) {
+            const uid = g.userId.toString();
+            if (!grantsByUser.has(uid)) {
+                const expDate = new Date(g.expiresAt);
+                const diffMs = expDate.getTime() - now.getTime();
+                const isLifetime = expDate.getFullYear() >= 2090 || diffMs > 3650 * 24 * 60 * 60 * 1000;
+                const remainingDays = diffMs > 0 ? Math.ceil(diffMs / (24 * 60 * 60 * 1000)) : 0;
+                grantsByUser.set(uid, {
+                    hasActiveGrant: diffMs > 0,
+                    remainingDays,
+                    isLifetime,
+                    expiresAt: g.expiresAt,
+                    source: g.source,
+                });
+            }
+        }
+
+        const enrichedUsers = users.map((u) => ({
+            ...u,
+            licenseStatus: grantsByUser.get(u._id.toString()) || {
+                hasActiveGrant: false,
+                remainingDays: 0,
+                isLifetime: false,
+                expiresAt: null,
+                source: null,
+            },
+        }));
+
         return res.json({
             success: true,
-            total: users.length,
-            users,
+            total: enrichedUsers.length,
+            users: enrichedUsers,
         });
     } catch (error) {
         logger.error('Admin users error', { error: error.message });
@@ -1344,16 +1382,53 @@ router.post('/admin/licenses/generate', ...requireAdminSafe, async (req, res) =>
 
 router.get('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) => {
     try {
-        const username = normalizeUsername(req.params.username);
-        if (!username) {
-            return res.status(400).json({ success: false, message: 'username is required' });
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
         }
 
-        const user = await User.findOne({ username })
-            .select('name username email role projects')
+        const user = await User.findOne({
+            $or: [{ username: normalized }, { email: normalized }],
+        })
+            .select('name username email role projects tokenVersion createdAt')
             .lean();
         if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: `User '${rawParam}' not found` });
+        }
+
+        const grants = await TrialLicenseGrant.find({
+            $or: [{ userId: user._id }, { username: user.username }],
+        })
+            .sort({ expiresAt: -1 })
+            .lean();
+
+        const now = new Date();
+        const activeGrants = grants.filter((g) => !g.revokedAt);
+        const latestGrant = activeGrants.length > 0 ? activeGrants[0] : null;
+
+        let activeGrantInfo = null;
+        if (latestGrant && latestGrant.expiresAt) {
+            const expDate = new Date(latestGrant.expiresAt);
+            const diffMs = expDate.getTime() - now.getTime();
+            const isLifetime = expDate.getFullYear() >= 2090 || diffMs > 3650 * 24 * 60 * 60 * 1000;
+            const isExpired = diffMs <= 0;
+            const remainingDays = isExpired ? 0 : Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+            const remainingHours = isExpired ? 0 : Math.ceil(diffMs / (60 * 60 * 1000));
+
+            activeGrantInfo = {
+                tokenId: latestGrant.tokenId,
+                source: latestGrant.source,
+                claimRef: latestGrant.claimRef,
+                apps: latestGrant.apps,
+                expiresAt: latestGrant.expiresAt,
+                expiresAtUtc: expDate.toUTCString(),
+                remainingDays,
+                remainingHours,
+                isLifetime,
+                isExpired,
+                status: isLifetime ? 'Lifetime' : (!isExpired ? 'Active' : 'Expired'),
+            };
         }
 
         const appsMap = await getAppsMap({ includeInactive: true });
@@ -1362,6 +1437,21 @@ router.get('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) 
             user,
             assignedApps: normalizeAppList(user.projects),
             availableApps: [...appsMap.values()],
+            activeGrant: activeGrantInfo,
+            grants: grants.map((g) => {
+                const exp = new Date(g.expiresAt);
+                const diff = exp.getTime() - now.getTime();
+                return {
+                    tokenId: g.tokenId,
+                    source: g.source,
+                    claimRef: g.claimRef,
+                    apps: g.apps,
+                    expiresAt: g.expiresAt,
+                    isExpired: diff <= 0,
+                    remainingDays: diff > 0 ? Math.ceil(diff / (24 * 60 * 60 * 1000)) : 0,
+                    revoked: !!g.revokedAt,
+                };
+            }),
         });
     } catch (error) {
         logger.error('Admin get user apps error', { error: error.message });
@@ -1371,9 +1461,10 @@ router.get('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) 
 
 router.put('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) => {
     try {
-        const username = normalizeUsername(req.params.username);
-        if (!username) {
-            return res.status(400).json({ success: false, message: 'username is required' });
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
         }
 
         const rawApps = Array.isArray(req.body?.apps)
@@ -1395,7 +1486,7 @@ router.put('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) 
         }
 
         const updatedUser = await User.findOneAndUpdate(
-            { username },
+            { $or: [{ username: normalized }, { email: normalized }] },
             {
                 $set: {
                     projects: requestedApps,
@@ -1420,6 +1511,127 @@ router.put('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) 
     } catch (error) {
         logger.error('Admin set user apps error', { error: error.message });
         return res.status(500).json({ success: false, message: 'Error updating user app access' });
+    }
+});
+
+router.post('/admin/users/:username/licenses/extend', ...requireAdminSafe, async (req, res) => {
+    try {
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
+        }
+
+        const user = await User.findOne({
+            $or: [{ username: normalized }, { email: normalized }],
+        }).select('role projects tokenVersion email username');
+        if (!user) {
+            return res.status(404).json({ success: false, message: `User '${rawParam}' not found` });
+        }
+
+        const rawDays = req.body?.days;
+        const requestedAppId = normalizeAppId(req.body?.appId);
+        const source = String(req.body?.source || 'admin_console').trim().toLowerCase();
+
+        const now = new Date();
+        const existingGrants = await TrialLicenseGrant.find({
+            $or: [{ userId: user._id }, { username: user.username }],
+            revokedAt: null,
+        }).sort({ expiresAt: -1 });
+
+        const latestGrant = existingGrants.length > 0 ? existingGrants[0] : null;
+
+        const isLifetime = rawDays === 'lifetime' || rawDays === 'never' || Number(rawDays) >= 36500 || rawDays === 0;
+        let expiresAtDate;
+        let expiresAtUnix;
+        let addedDays = 0;
+
+        if (isLifetime) {
+            // Dec 31, 2099 23:59:59 UTC
+            expiresAtUnix = 4102444799;
+            expiresAtDate = new Date(expiresAtUnix * 1000);
+        } else {
+            addedDays = Math.max(1, Number(rawDays) || 30);
+            let baseMs = now.getTime();
+            // If existing unrevoked grant is still active, extend FROM its expiration date
+            if (latestGrant && new Date(latestGrant.expiresAt).getTime() > now.getTime()) {
+                baseMs = new Date(latestGrant.expiresAt).getTime();
+            }
+            expiresAtDate = new Date(baseMs + addedDays * 24 * 60 * 60 * 1000);
+            expiresAtUnix = Math.floor(expiresAtDate.getTime() / 1000);
+        }
+
+        const targetAppId = requestedAppId || (latestGrant?.apps?.[0]) || 'agentbuddy';
+
+        // Ensure user has target app in projects
+        if (targetAppId !== '*' && !(user.projects || []).map(normalizeAppId).includes(targetAppId)) {
+            user.projects = normalizeAppList([...(user.projects || []), targetAppId]);
+            await user.save();
+        }
+
+        let grantRecord;
+        if (latestGrant) {
+            latestGrant.expiresAt = expiresAtDate;
+            latestGrant.claimRef = latestGrant.claimRef
+                ? (latestGrant.claimRef.includes('admin-extended') ? latestGrant.claimRef : `${latestGrant.claimRef}+admin-extended`)
+                : 'admin-extended';
+            if (targetAppId !== '*' && !latestGrant.apps.includes(targetAppId)) {
+                latestGrant.apps.push(targetAppId);
+            }
+            grantRecord = await latestGrant.save();
+        } else {
+            const tokenId = `license-${targetAppId}-${Date.now()}`;
+            grantRecord = await TrialLicenseGrant.create({
+                userId: user._id,
+                username: user.username,
+                source,
+                tokenId,
+                claimRef: `${targetAppId}-admin-extended`,
+                apps: [targetAppId],
+                expiresAt: expiresAtDate,
+                revokedAt: null,
+            });
+        }
+
+        const remainingMs = expiresAtDate.getTime() - now.getTime();
+        const remainingDays = isLifetime ? 36500 : Math.max(1, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+
+        const payload = {
+            sub: user._id.toString(),
+            username: user.username,
+            role: user.role,
+            projects: user.projects && user.projects.length > 0 ? user.projects : [targetAppId],
+            tokenVersion: user.tokenVersion,
+            appId: targetAppId,
+            trialGrant: true,
+            trialSource: grantRecord.source,
+            trialTokenId: grantRecord.tokenId,
+            exp: expiresAtUnix,
+        };
+
+        const licenseToken = jwt.sign(payload, ACCESS_TOKEN_SECRET);
+
+        return res.json({
+            success: true,
+            message: `License successfully extended for ${user.username} (${isLifetime ? 'Lifetime' : '+' + addedDays + ' days, total: ' + remainingDays + ' days remaining'})`,
+            username: user.username,
+            appId: targetAppId,
+            isLifetime,
+            remainingDays,
+            expiresAt: expiresAtDate.toISOString(),
+            expiresAtUtc: expiresAtDate.toUTCString(),
+            licenseToken,
+            tokenType: 'Bearer',
+            grant: {
+                tokenId: grantRecord.tokenId,
+                source: grantRecord.source,
+                apps: grantRecord.apps,
+                expiresAt: grantRecord.expiresAt,
+            },
+        });
+    } catch (error) {
+        logger.error('Admin license extend error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error extending license' });
     }
 });
 
