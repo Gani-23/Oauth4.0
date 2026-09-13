@@ -1333,7 +1333,10 @@ router.put('/admin/users/:username', ...requireAdminSafe, async (req, res) => {
             targetUser.projects = normalizeAppList(raw);
         }
         const pwd = password || newPassword;
-        if (pwd && typeof pwd === 'string' && pwd.trim().length >= 6) {
+        if (pwd !== undefined) {
+            if (typeof pwd !== 'string' || pwd.trim().length < 6) {
+                return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+            }
             targetUser.password = await bcrypt.hash(pwd.trim(), BCRYPT_ROUNDS);
             targetUser.tokenVersion += 1;
             targetUser.refreshTokenHash = null;
@@ -1402,6 +1405,63 @@ router.delete('/admin/users/:username', ...requireAdminSafe, async (req, res) =>
         return res.status(500).json({ success: false, message: 'Error deleting user' });
     }
 });
+
+const handleAdminPasswordReset = async (req, res) => {
+    try {
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
+        }
+
+        const targetUser = await User.findOne({
+            $or: [{ username: normalized }, { email: normalized }],
+        }).select('+password +refreshTokenHash +refreshTokenExpiresAt');
+
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: `User '${rawParam}' not found` });
+        }
+
+        const { password, newPassword } = req.body || {};
+        const pwd = password || newPassword;
+
+        if (!pwd || typeof pwd !== 'string' || pwd.trim().length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long',
+            });
+        }
+
+        targetUser.password = await bcrypt.hash(pwd.trim(), BCRYPT_ROUNDS);
+        targetUser.tokenVersion += 1;
+        targetUser.refreshTokenHash = null;
+        targetUser.refreshTokenExpiresAt = null;
+        await targetUser.save();
+
+        logger.info('Admin reset user password', {
+            admin: req.user ? req.user.username : 'admin',
+            targetUser: targetUser.username,
+        });
+
+        return res.json({
+            success: true,
+            message: `Password updated successfully for user '${targetUser.username}'`,
+            user: {
+                _id: targetUser._id,
+                username: targetUser.username,
+                email: targetUser.email,
+                role: targetUser.role,
+                updatedAt: targetUser.updatedAt,
+            },
+        });
+    } catch (error) {
+        logger.error('Admin password reset error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error resetting password' });
+    }
+};
+
+router.put('/admin/users/:username/password', ...requireAdminSafe, handleAdminPasswordReset);
+router.post('/admin/users/:username/password', ...requireAdminSafe, handleAdminPasswordReset);
 
 router.get('/admin/personal-token', ...requireAdminSafe, async (req, res) => {
     try {
@@ -1986,15 +2046,22 @@ router.put('/update-password/:username', requireAuth, authLimiter, async (req, r
             return res.status(400).json({ success: false, message: 'New password is required' });
         }
 
-        if (!isStrongPassword(newPassword)) {
+        if (!isAdmin && !isStrongPassword(newPassword)) {
             return res.status(400).json({
                 success: false,
                 message: 'Password must be 12+ chars with upper, lower, number, and special character',
             });
         }
 
+        if (isAdmin && (typeof newPassword !== 'string' || newPassword.trim().length < 6)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long',
+            });
+        }
+
         const user = await User.findOne({ username })
-            .select('+password +refreshTokenHash +refreshTokenExpiresAt tokenVersion');
+            .select('+password +refreshTokenHash +refreshTokenExpiresAt');
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });

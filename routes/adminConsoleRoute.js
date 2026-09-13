@@ -195,6 +195,63 @@ router.get('/3vc17cs006', (_req, res) => {
       </div>
     </div>
 
+    <!-- 🔑 DEDICATED PASSWORD RESET MODAL -->
+    <div id="passwordModalBackdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden transition-opacity items-center justify-center p-4">
+      <div id="passwordModalCard" class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 transform transition-all">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <span class="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-lg">🔑</span>
+            <div>
+              <h3 class="font-bold text-slate-100 text-base">Reset User Password</h3>
+              <p class="text-xs text-slate-400">Admin Privileged Override</p>
+            </div>
+          </div>
+          <button id="closePasswordModalBtn" type="button" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors" title="Close">✕</button>
+        </div>
+
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">Target User:</span>
+            <span id="modalTargetUsername" class="font-mono font-bold text-cyan-300">-</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">Email:</span>
+            <span id="modalTargetEmail" class="text-slate-300 font-sans truncate max-w-[240px]">-</span>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-slate-300">New Password</label>
+            <div class="flex items-center gap-2">
+              <button id="modalGenPasswordBtn" type="button" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium hover:underline flex items-center gap-1">
+                <span>🎲 Generate Strong</span>
+              </button>
+              <button id="modalCopyPasswordBtn" type="button" class="text-[11px] text-slate-400 hover:text-slate-200 font-medium hover:underline items-center gap-1 hidden">
+                <span>📋 Copy</span>
+              </button>
+            </div>
+          </div>
+          <div class="relative">
+            <input id="modalNewPasswordInput" type="password" placeholder="Enter or generate new password (min 6 chars)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-slate-200 font-mono outline-none focus:border-cyan-400 placeholder:font-sans" />
+            <button id="modalTogglePasswordBtn" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-sm p-1" title="Toggle visibility">
+              👁️
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500">Must be at least 6 characters. Current password is not required when logged in with an admin bearer token.</p>
+        </div>
+
+        <div id="modalPasswordAlert" class="hidden p-3 rounded-xl text-xs"></div>
+
+        <div class="flex gap-2.5 justify-end pt-2 border-t border-slate-800">
+          <button id="modalCancelPasswordBtn" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors">Cancel</button>
+          <button id="modalSubmitPasswordBtn" type="button" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5">
+            <span>Update Password</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 🪟 USER MANAGEMENT SLIDE-OVER DRAWER -->
     <div id="drawerBackdrop" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40 hidden transition-opacity"></div>
     <aside id="userDrawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-lg sm:max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto transform translate-x-full transition-transform duration-300 ease-in-out">
@@ -300,27 +357,47 @@ router.get('/3vc17cs006', (_req, res) => {
 
         <!-- 4. User Account Management (Role, Password, Delete) -->
         <div id="userAccountSettings" class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
-          <span class="text-xs font-semibold text-slate-300 block">Account Security & Role</span>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="text-[10px] text-slate-400 block mb-1">Assigned Role</label>
-              <div class="flex gap-1.5">
-                <select id="manageUserRoleSelect" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-                <button id="saveUserRoleBtn" type="button" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition-colors">Save</button>
-              </div>
-            </div>
-            <div>
-              <label class="text-[10px] text-slate-400 block mb-1">Reset Password</label>
-              <div class="flex gap-1.5">
-                <input id="manageUserPasswordInput" type="password" placeholder="New password" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400" />
-                <button id="saveUserPasswordBtn" type="button" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs transition-colors">Reset</button>
-              </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <span>🛡️ Security & Role Control</span>
+            </span>
+            <span class="text-[10px] text-amber-400 font-mono font-medium">Admin Override</span>
+          </div>
+
+          <!-- Role -->
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Account Role</label>
+            <div class="flex gap-2">
+              <select id="manageUserRoleSelect" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+              <button id="saveUserRoleBtn" type="button" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl text-xs transition-colors">Save Role</button>
             </div>
           </div>
-          <div class="pt-2 flex justify-end">
+
+          <!-- Password Reset Box -->
+          <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                <span>🔑 Change Password</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <button id="drawerGenPasswordBtn" type="button" class="text-[10px] text-cyan-400 hover:text-cyan-300 hover:underline">🎲 Generate</button>
+                <button id="drawerCopyPasswordBtn" type="button" class="text-[10px] text-slate-400 hover:text-slate-200 hover:underline hidden">📋 Copy</button>
+              </div>
+            </div>
+            <div class="flex gap-1.5">
+              <div class="relative flex-1">
+                <input id="manageUserPasswordInput" type="password" placeholder="New password (min 6 chars)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 pr-9 text-xs text-slate-200 font-mono outline-none focus:border-cyan-400 placeholder:font-sans" />
+                <button id="drawerTogglePasswordBtn" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs p-0.5" title="Toggle visibility">👁️</button>
+              </div>
+              <button id="saveUserPasswordBtn" type="button" class="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors whitespace-nowrap shadow">Update</button>
+            </div>
+            <p id="drawerPasswordFeedback" class="text-[11px] text-emerald-400 font-medium hidden"></p>
+          </div>
+
+          <div class="pt-2 flex justify-end border-t border-slate-900">
             <button id="deleteManageUserBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
               <span>🗑️ Permanently Delete User Account</span>
             </button>
@@ -530,6 +607,22 @@ router.get('/3vc17cs006', (_req, res) => {
     const manageUserPasswordInput = document.getElementById('manageUserPasswordInput');
     const saveUserPasswordBtn = document.getElementById('saveUserPasswordBtn');
     const deleteManageUserBtn = document.getElementById('deleteManageUserBtn');
+    const drawerTogglePasswordBtn = document.getElementById('drawerTogglePasswordBtn');
+    const drawerGenPasswordBtn = document.getElementById('drawerGenPasswordBtn');
+    const drawerCopyPasswordBtn = document.getElementById('drawerCopyPasswordBtn');
+    const drawerPasswordFeedback = document.getElementById('drawerPasswordFeedback');
+
+    const passwordModalBackdrop = document.getElementById('passwordModalBackdrop');
+    const modalTargetUsername = document.getElementById('modalTargetUsername');
+    const modalTargetEmail = document.getElementById('modalTargetEmail');
+    const modalNewPasswordInput = document.getElementById('modalNewPasswordInput');
+    const modalTogglePasswordBtn = document.getElementById('modalTogglePasswordBtn');
+    const modalGenPasswordBtn = document.getElementById('modalGenPasswordBtn');
+    const modalCopyPasswordBtn = document.getElementById('modalCopyPasswordBtn');
+    const modalPasswordAlert = document.getElementById('modalPasswordAlert');
+    const modalCancelPasswordBtn = document.getElementById('modalCancelPasswordBtn');
+    const modalSubmitPasswordBtn = document.getElementById('modalSubmitPasswordBtn');
+    const closePasswordModalBtn = document.getElementById('closePasswordModalBtn');
 
     const activeGrantStatusBadge = document.getElementById('activeGrantStatusBadge');
     const activeGrantDetails = document.getElementById('activeGrantDetails');
@@ -766,11 +859,14 @@ router.get('/3vc17cs006', (_req, res) => {
             '<td class="py-3.5 px-4">' + licensePill + '</td>' +
             '<td class="py-3.5 px-4 max-w-xs">' + appPills + '</td>' +
             '<td class="py-3.5 px-4 text-right">' +
-              '<div class="flex items-center justify-end gap-2">' +
-                '<button class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-700 hover:border-cyan-500" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
+              '<div class="flex items-center justify-end gap-1.5 flex-wrap">' +
+                '<button class="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold transition-colors flex items-center gap-1" data-action="reset-password" data-username="' + escapeHtml(u.username) + '" data-email="' + escapeHtml(u.email || '') + '" title="Reset password for ' + escapeHtml(u.username) + '">' +
+                  '<span>🔑 Password</span>' +
+                '</button>' +
+                '<button class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1 border border-slate-700 hover:border-cyan-500" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
                   '<span>⚙️ Manage</span>' +
                 '</button>' +
-                '<button class="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 text-xs font-semibold transition-colors" data-action="delete-user" data-username="' + escapeHtml(u.username) + '">Delete</button>' +
+                '<button class="px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 text-xs font-semibold transition-colors" data-action="delete-user" data-username="' + escapeHtml(u.username) + '">Delete</button>' +
               '</div>' +
             '</td>' +
           '</tr>'
@@ -1265,6 +1361,178 @@ router.get('/3vc17cs006', (_req, res) => {
       });
     }
 
+    // Secure Password Generator Helper
+    function generateSecurePassword(length) {
+      const len = length || 14;
+      const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*_-';
+      let pwd = '';
+      if (window.crypto && window.crypto.getRandomValues) {
+        const arr = new Uint32Array(len);
+        window.crypto.getRandomValues(arr);
+        for (let i = 0; i < len; i++) {
+          pwd += chars[arr[i] % chars.length];
+        }
+      } else {
+        for (let i = 0; i < len; i++) {
+          pwd += chars[Math.floor(Math.random() * chars.length)];
+        }
+      }
+      return pwd;
+    }
+
+    // Password Reset Modal Handlers
+    function openPasswordModal(username, email) {
+      state.passwordModalUsername = username;
+      if (modalTargetUsername) modalTargetUsername.textContent = '@' + username;
+      if (modalTargetEmail) modalTargetEmail.textContent = email || 'No email specified';
+      if (modalNewPasswordInput) {
+        modalNewPasswordInput.value = '';
+        modalNewPasswordInput.type = 'password';
+      }
+      if (modalTogglePasswordBtn) modalTogglePasswordBtn.textContent = '👁️';
+      if (modalCopyPasswordBtn) {
+        modalCopyPasswordBtn.classList.add('hidden');
+        modalCopyPasswordBtn.classList.remove('inline-flex');
+      }
+      if (modalPasswordAlert) {
+        modalPasswordAlert.className = 'hidden';
+        modalPasswordAlert.textContent = '';
+      }
+      if (passwordModalBackdrop) {
+        passwordModalBackdrop.classList.remove('hidden');
+        passwordModalBackdrop.classList.add('flex');
+      }
+      if (modalNewPasswordInput) {
+        setTimeout(function () { modalNewPasswordInput.focus(); }, 50);
+      }
+    }
+
+    function closePasswordModal() {
+      if (passwordModalBackdrop) {
+        passwordModalBackdrop.classList.add('hidden');
+        passwordModalBackdrop.classList.remove('flex');
+      }
+      state.passwordModalUsername = null;
+    }
+
+    if (closePasswordModalBtn) closePasswordModalBtn.addEventListener('click', closePasswordModal);
+    if (modalCancelPasswordBtn) modalCancelPasswordBtn.addEventListener('click', closePasswordModal);
+    if (passwordModalBackdrop) {
+      passwordModalBackdrop.addEventListener('click', function (e) {
+        if (e.target === passwordModalBackdrop) closePasswordModal();
+      });
+    }
+
+    if (modalTogglePasswordBtn && modalNewPasswordInput) {
+      modalTogglePasswordBtn.addEventListener('click', function () {
+        const isPwd = modalNewPasswordInput.type === 'password';
+        modalNewPasswordInput.type = isPwd ? 'text' : 'password';
+        modalTogglePasswordBtn.textContent = isPwd ? '🔒' : '👁️';
+      });
+    }
+
+    if (modalGenPasswordBtn && modalNewPasswordInput) {
+      modalGenPasswordBtn.addEventListener('click', function () {
+        const generated = generateSecurePassword(14);
+        modalNewPasswordInput.value = generated;
+        modalNewPasswordInput.type = 'text';
+        if (modalTogglePasswordBtn) modalTogglePasswordBtn.textContent = '🔒';
+        if (modalCopyPasswordBtn) {
+          modalCopyPasswordBtn.classList.remove('hidden');
+          modalCopyPasswordBtn.classList.add('inline-flex');
+        }
+      });
+    }
+
+    if (modalCopyPasswordBtn && modalNewPasswordInput) {
+      modalCopyPasswordBtn.addEventListener('click', function () {
+        if (!modalNewPasswordInput.value) return;
+        navigator.clipboard.writeText(modalNewPasswordInput.value);
+        modalCopyPasswordBtn.textContent = '✅ Copied!';
+        setTimeout(function () {
+          modalCopyPasswordBtn.textContent = '📋 Copy';
+        }, 2000);
+      });
+    }
+
+    if (modalSubmitPasswordBtn) {
+      modalSubmitPasswordBtn.addEventListener('click', async function () {
+        const targetUser = state.passwordModalUsername;
+        if (!targetUser) {
+          alert('Target user is missing.');
+          return;
+        }
+        const newPassword = modalNewPasswordInput ? modalNewPasswordInput.value.trim() : '';
+        if (!newPassword || newPassword.length < 6) {
+          if (modalPasswordAlert) {
+            modalPasswordAlert.className = 'p-3 rounded-xl text-xs bg-rose-950/80 border border-rose-800 text-rose-300';
+            modalPasswordAlert.textContent = 'Password must be at least 6 characters long.';
+          }
+          return;
+        }
+
+        modalSubmitPasswordBtn.disabled = true;
+        modalSubmitPasswordBtn.innerHTML = '<span>Saving...</span>';
+
+        try {
+          const res = await api('/api/users/admin/users/' + encodeURIComponent(targetUser) + '/password', {
+            method: 'PUT',
+            body: JSON.stringify({ password: newPassword }),
+          });
+
+          if (modalPasswordAlert) {
+            modalPasswordAlert.className = 'p-3 rounded-xl text-xs bg-emerald-950/80 border border-emerald-800 text-emerald-300 font-medium';
+            modalPasswordAlert.textContent = res.message || 'Password updated successfully!';
+          }
+          statusText.textContent = 'Password reset successfully for ' + targetUser;
+          setTimeout(function () {
+            closePasswordModal();
+          }, 1500);
+        } catch (err) {
+          if (modalPasswordAlert) {
+            modalPasswordAlert.className = 'p-3 rounded-xl text-xs bg-rose-950/80 border border-rose-800 text-rose-300';
+            modalPasswordAlert.textContent = 'Error: ' + err.message;
+          }
+        } finally {
+          modalSubmitPasswordBtn.disabled = false;
+          modalSubmitPasswordBtn.innerHTML = '<span>Update Password</span>';
+        }
+      });
+    }
+
+    // Drawer Password Reset Controls
+    if (drawerTogglePasswordBtn && manageUserPasswordInput) {
+      drawerTogglePasswordBtn.addEventListener('click', function () {
+        const isPwd = manageUserPasswordInput.type === 'password';
+        manageUserPasswordInput.type = isPwd ? 'text' : 'password';
+        drawerTogglePasswordBtn.textContent = isPwd ? '🔒' : '👁️';
+      });
+    }
+
+    if (drawerGenPasswordBtn && manageUserPasswordInput) {
+      drawerGenPasswordBtn.addEventListener('click', function () {
+        const generated = generateSecurePassword(14);
+        manageUserPasswordInput.value = generated;
+        manageUserPasswordInput.type = 'text';
+        if (drawerTogglePasswordBtn) drawerTogglePasswordBtn.textContent = '🔒';
+        if (drawerCopyPasswordBtn) {
+          drawerCopyPasswordBtn.classList.remove('hidden');
+          drawerCopyPasswordBtn.classList.add('inline-flex');
+        }
+      });
+    }
+
+    if (drawerCopyPasswordBtn && manageUserPasswordInput) {
+      drawerCopyPasswordBtn.addEventListener('click', function () {
+        if (!manageUserPasswordInput.value) return;
+        navigator.clipboard.writeText(manageUserPasswordInput.value);
+        drawerCopyPasswordBtn.textContent = '✅ Copied!';
+        setTimeout(function () {
+          drawerCopyPasswordBtn.textContent = '📋 Copy';
+        }, 2000);
+      });
+    }
+
     if (saveUserPasswordBtn) {
       saveUserPasswordBtn.addEventListener('click', async function () {
         if (!state.selectedUsername) {
@@ -1272,20 +1540,31 @@ router.get('/3vc17cs006', (_req, res) => {
           return;
         }
         const newPassword = manageUserPasswordInput.value.trim();
-        if (!newPassword) {
-          alert('Please enter a new password.');
+        if (!newPassword || newPassword.length < 6) {
+          alert('Password must be at least 6 characters long.');
           return;
         }
+        saveUserPasswordBtn.disabled = true;
         try {
-          await api('/api/users/admin/users/' + encodeURIComponent(state.selectedUsername), {
+          const res = await api('/api/users/admin/users/' + encodeURIComponent(state.selectedUsername) + '/password', {
             method: 'PUT',
             body: JSON.stringify({ password: newPassword }),
           });
-          statusText.textContent = 'Password reset successfully for ' + state.selectedUsername;
+          statusText.textContent = res.message || 'Password reset successfully for ' + state.selectedUsername;
+          if (drawerPasswordFeedback) {
+            drawerPasswordFeedback.textContent = '✓ ' + (res.message || 'Password updated successfully!');
+            drawerPasswordFeedback.classList.remove('hidden');
+            setTimeout(function () { drawerPasswordFeedback.classList.add('hidden'); }, 4000);
+          }
           manageUserPasswordInput.value = '';
-          alert('Password reset successfully for ' + state.selectedUsername);
+          manageUserPasswordInput.type = 'password';
+          if (drawerTogglePasswordBtn) drawerTogglePasswordBtn.textContent = '👁️';
+          if (drawerCopyPasswordBtn) drawerCopyPasswordBtn.classList.add('hidden');
+          alert('Password updated successfully for ' + state.selectedUsername);
         } catch (err) {
           alert('Password reset error: ' + err.message);
+        } finally {
+          saveUserPasswordBtn.disabled = false;
         }
       });
     }
@@ -1355,6 +1634,14 @@ router.get('/3vc17cs006', (_req, res) => {
     });
 
     usersTable.addEventListener('click', function (e) {
+      const pwdBtn = e.target.closest('[data-action="reset-password"]');
+      if (pwdBtn) {
+        e.stopPropagation();
+        const username = pwdBtn.getAttribute('data-username');
+        const email = pwdBtn.getAttribute('data-email');
+        if (username) openPasswordModal(username, email);
+        return;
+      }
       const delBtn = e.target.closest('[data-action="delete-user"]');
       if (delBtn) {
         e.stopPropagation();
@@ -1427,7 +1714,10 @@ router.get('/3vc17cs006', (_req, res) => {
     const drawerBackdrop = document.getElementById('drawerBackdrop');
     if (drawerBackdrop) drawerBackdrop.addEventListener('click', closeUserDrawer);
     window.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeUserDrawer();
+      if (e.key === 'Escape') {
+        closeUserDrawer();
+        closePasswordModal();
+      }
     });
 
     // Realtime User Search
