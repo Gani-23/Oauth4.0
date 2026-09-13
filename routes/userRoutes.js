@@ -1021,6 +1021,80 @@ router.put('/apps/:appId/status', ...requireAdminSafe, async (req, res) => {
     }
 });
 
+router.put('/apps/:appId', ...requireAdminSafe, async (req, res) => {
+    try {
+        const normalizedAppId = normalizeAppId(req.params.appId);
+        const { name, appUrl, description, status } = req.body || {};
+
+        if (!normalizedAppId) {
+            return res.status(400).json({ success: false, message: 'appId is required' });
+        }
+
+        const updateData = {};
+        if (name !== undefined) updateData.name = String(name).trim();
+        if (appUrl !== undefined) updateData.appUrl = String(appUrl).trim();
+        if (description !== undefined) updateData.description = String(description).trim();
+        if (status !== undefined) {
+            if (!['active', 'inactive'].includes(status)) {
+                return res.status(400).json({ success: false, message: 'status must be active or inactive' });
+            }
+            updateData.status = status;
+        }
+
+        const updatedApp = await App.findOneAndUpdate(
+            { appId: normalizedAppId },
+            { $set: updateData },
+            { new: true },
+        );
+
+        if (!updatedApp) {
+            return res.status(404).json({ success: false, message: `App '${normalizedAppId}' not found` });
+        }
+
+        return res.json({
+            success: true,
+            message: `App '${normalizedAppId}' updated successfully`,
+            app: updatedApp,
+        });
+    } catch (error) {
+        logger.error('Update app error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating app' });
+    }
+});
+
+router.delete('/apps/:appId', ...requireAdminSafe, async (req, res) => {
+    try {
+        const normalizedAppId = normalizeAppId(req.params.appId);
+        if (!normalizedAppId) {
+            return res.status(400).json({ success: false, message: 'appId is required' });
+        }
+
+        if (normalizedAppId === ADMIN_CONSOLE_APP_ID) {
+            return res.status(403).json({ success: false, message: 'Cannot delete system admin console app' });
+        }
+
+        const deletedApp = await App.findOneAndDelete({ appId: normalizedAppId });
+        if (!deletedApp) {
+            return res.status(404).json({ success: false, message: `App '${normalizedAppId}' not found` });
+        }
+
+        // Clean up app from users' projects
+        await User.updateMany(
+            { projects: normalizedAppId },
+            { $pull: { projects: normalizedAppId } },
+        );
+
+        return res.json({
+            success: true,
+            message: `App '${normalizedAppId}' deleted successfully`,
+            appId: normalizedAppId,
+        });
+    } catch (error) {
+        logger.error('Delete app error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error deleting app' });
+    }
+});
+
 router.put('/apps/:appId/assign/:username', ...requireAdminSafe, async (req, res) => {
     try {
         const normalizedAppId = normalizeAppId(req.params.appId);
@@ -1161,6 +1235,171 @@ router.get('/admin/users', ...requireAdminSafe, async (req, res) => {
     } catch (error) {
         logger.error('Admin users error', { error: error.message });
         return res.status(500).json({ success: false, message: 'Error fetching users' });
+    }
+});
+
+router.post('/admin/users', ...requireAdminSafe, async (req, res) => {
+    try {
+        const { name, username, email, password, role, apps, projects } = req.body || {};
+
+        if (!name || !username || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'name, username, email, and password are required',
+            });
+        }
+
+        const normalizedUsername = normalizeUsername(username);
+        const normalizedEmail = normalizeEmail(email);
+
+        const existingUser = await User.findOne({
+            $or: [{ username: normalizedUsername }, { email: normalizedEmail }],
+        });
+        if (existingUser) {
+            return res.status(409).json({
+                success: false,
+                message: 'Username or email already exists',
+            });
+        }
+
+        const userRole = role === 'admin' ? 'admin' : 'user';
+        const rawApps = Array.isArray(apps) ? apps : (Array.isArray(projects) ? projects : []);
+        const userApps = normalizeAppList(rawApps);
+
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const newUser = await User.create({
+            name: String(name).trim(),
+            username: normalizedUsername,
+            email: normalizedEmail,
+            password: hashedPassword,
+            role: userRole,
+            projects: userApps,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: `User '${normalizedUsername}' created successfully`,
+            user: {
+                _id: newUser._id,
+                name: newUser.name,
+                username: newUser.username,
+                email: newUser.email,
+                role: newUser.role,
+                projects: newUser.projects,
+                createdAt: newUser.createdAt,
+            },
+        });
+    } catch (error) {
+        logger.error('Admin create user error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error creating user' });
+    }
+});
+
+router.put('/admin/users/:username', ...requireAdminSafe, async (req, res) => {
+    try {
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
+        }
+
+        const targetUser = await User.findOne({
+            $or: [{ username: normalized }, { email: normalized }],
+        }).select('+password');
+
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: `User '${rawParam}' not found` });
+        }
+
+        const { name, email, role, apps, projects, password, newPassword } = req.body || {};
+
+        if (name !== undefined) targetUser.name = String(name).trim();
+        if (email !== undefined) {
+            const nextEmail = normalizeEmail(email);
+            if (nextEmail && nextEmail !== targetUser.email) {
+                const clash = await User.findOne({ email: nextEmail, _id: { $ne: targetUser._id } });
+                if (clash) {
+                    return res.status(409).json({ success: false, message: 'Email is already in use by another account' });
+                }
+                targetUser.email = nextEmail;
+            }
+        }
+        if (role !== undefined && ['user', 'admin'].includes(String(role).toLowerCase())) {
+            targetUser.role = String(role).toLowerCase();
+        }
+        const updatedApps = apps !== undefined ? apps : projects;
+        if (updatedApps !== undefined) {
+            const raw = Array.isArray(updatedApps) ? updatedApps : String(updatedApps).split(',').map(s => s.trim()).filter(Boolean);
+            targetUser.projects = normalizeAppList(raw);
+        }
+        const pwd = password || newPassword;
+        if (pwd && typeof pwd === 'string' && pwd.trim().length >= 6) {
+            targetUser.password = await bcrypt.hash(pwd.trim(), BCRYPT_ROUNDS);
+            targetUser.tokenVersion += 1;
+            targetUser.refreshTokenHash = null;
+            targetUser.refreshTokenExpiresAt = null;
+        }
+
+        await targetUser.save();
+
+        return res.json({
+            success: true,
+            message: `User '${targetUser.username}' updated successfully`,
+            user: {
+                _id: targetUser._id,
+                name: targetUser.name,
+                username: targetUser.username,
+                email: targetUser.email,
+                role: targetUser.role,
+                projects: targetUser.projects,
+                updatedAt: targetUser.updatedAt,
+            },
+        });
+    } catch (error) {
+        logger.error('Admin update user error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error updating user' });
+    }
+});
+
+router.delete('/admin/users/:username', ...requireAdminSafe, async (req, res) => {
+    try {
+        const rawParam = String(req.params.username || '').trim();
+        const normalized = rawParam.toLowerCase();
+        if (!normalized) {
+            return res.status(400).json({ success: false, message: 'username or email is required' });
+        }
+
+        const user = await User.findOne({
+            $or: [{ username: normalized }, { email: normalized }],
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: `User '${rawParam}' not found` });
+        }
+
+        if (req.user && req.user.id && user._id.toString() === req.user.id.toString()) {
+            return res.status(403).json({ success: false, message: 'Cannot delete your own active admin account' });
+        }
+
+        await User.findByIdAndDelete(user._id);
+
+        await TrialLicenseGrant.deleteMany({
+            $or: [{ userId: user._id }, { username: user.username }],
+        });
+        await AdminPersonalToken.deleteMany({ userId: user._id });
+
+        return res.json({
+            success: true,
+            message: `User '${user.username}' (${user.email}) deleted successfully`,
+            deletedUser: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+            },
+        });
+    } catch (error) {
+        logger.error('Admin delete user error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error deleting user' });
     }
 });
 

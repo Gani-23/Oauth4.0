@@ -168,10 +168,10 @@ router.get('/3vc17cs006', (_req, res) => {
           </div>
         </section>
 
-        <!-- 🚀 CREATE APP WITH PRESETS -->
+        <!-- 🚀 REGISTER / EDIT APP -->
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="font-bold text-base text-slate-200">Register New App</h2>
+            <h2 id="appFormTitle" class="font-bold text-base text-slate-200">Register New App</h2>
             <div class="flex gap-1.5">
               <button type="button" id="presetAgentBuddyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-1 rounded">Preset: AgentBuddy</button>
               <button type="button" id="presetClearBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 px-2 py-1 rounded">Clear</button>
@@ -190,18 +190,59 @@ router.get('/3vc17cs006', (_req, res) => {
                 <option value="inactive">Status: inactive</option>
               </select>
             </div>
-            <button id="createAppBtn" type="button" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-colors shadow">
-              Register App
-            </button>
+            <div class="flex gap-2">
+              <button id="createAppBtn" type="button" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-colors shadow">
+                Register App
+              </button>
+              <button id="cancelAppEditBtn" type="button" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-colors">
+                Cancel
+              </button>
+            </div>
           </div>
         </section>
 
         <!-- 👥 USERS DIRECTORY TABLE -->
         <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="font-bold text-base text-slate-200">Users Directory</h2>
-            <span id="usersCountBadge" class="text-xs text-slate-400 font-mono">0 users</span>
+            <div class="flex items-center gap-2.5">
+              <h2 class="font-bold text-base text-slate-200">Users Directory</h2>
+              <span id="usersCountBadge" class="text-xs text-slate-400 font-mono">0 users</span>
+            </div>
+            <button type="button" id="toggleAddUserBtn" class="text-xs px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors flex items-center gap-1 shadow">
+              <span>+ Add User</span>
+            </button>
           </div>
+
+          <!-- COLLAPSIBLE ADD USER FORM -->
+          <div id="addUserPanel" class="hidden mb-4 p-4 bg-slate-950 border border-cyan-800/60 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs font-bold text-cyan-300 uppercase tracking-wider">Create New User Account</h3>
+              <span class="text-[10px] text-slate-500">Admin Privileged</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input id="newUserName" type="text" placeholder="Full Name (e.g. John Doe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+              <input id="newUserUsername" type="text" placeholder="Username (e.g. johndoe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400 font-mono" />
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input id="newUserEmail" type="email" placeholder="Email address" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+              <input id="newUserPassword" type="password" placeholder="Password (6+ chars)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+            </div>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2.5">
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-slate-400 shrink-0">Role:</label>
+                <select id="newUserRole" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+              <input id="newUserAppsInput" type="text" placeholder="Initial apps (e.g. agentbuddy, krushigowrava)" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 font-mono" />
+            </div>
+            <div class="flex gap-2 justify-end pt-1">
+              <button type="button" id="cancelAddUserBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-medium">Cancel</button>
+              <button type="button" id="submitCreateUserBtn" class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors">Create User</button>
+            </div>
+          </div>
+
           <div class="overflow-auto max-h-80 border border-slate-800 rounded-xl">
             <table class="w-full text-xs">
               <thead class="bg-slate-950 text-slate-400 sticky top-0 border-b border-slate-800">
@@ -211,7 +252,7 @@ router.get('/3vc17cs006', (_req, res) => {
                   <th class="text-left p-2.5">Role</th>
                   <th class="text-left p-2.5">Redeemed / Trial</th>
                   <th class="text-left p-2.5">Apps</th>
-                  <th class="text-right p-2.5">Action</th>
+                  <th class="text-right p-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody id="usersTable" class="divide-y divide-slate-800/60 font-mono"></tbody>
@@ -325,6 +366,35 @@ router.get('/3vc17cs006', (_req, res) => {
           <button id="saveUserAppsBtn" type="button" class="w-full mt-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-xl text-sm transition-colors shadow">
             Save App Permissions
           </button>
+
+          <!-- ⚙️ USER ACCOUNT SETTINGS (ROLE, PASSWORD, DELETE) -->
+          <div id="userAccountSettings" class="mt-4 pt-3.5 border-t border-slate-800 space-y-2.5">
+            <span class="text-xs font-semibold text-slate-300 block">User Account Management</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Assigned Role</label>
+                <div class="flex gap-1.5">
+                  <select id="manageUserRoleSelect" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                  <button id="saveUserRoleBtn" type="button" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition-colors">Save Role</button>
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Reset Password</label>
+                <div class="flex gap-1.5">
+                  <input id="manageUserPasswordInput" type="password" placeholder="New password" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400" />
+                  <button id="saveUserPasswordBtn" type="button" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs transition-colors">Reset</button>
+                </div>
+              </div>
+            </div>
+            <div class="pt-1 flex justify-end">
+              <button id="deleteManageUserBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
+                <span>🗑️ Permanently Delete User Account</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         <!-- 👑 ROLE MANAGEMENT -->
@@ -378,6 +448,32 @@ router.get('/3vc17cs006', (_req, res) => {
     const manageUsernameInput = document.getElementById('manageUsername');
     const manageUserBadge = document.getElementById('manageUserBadge');
 
+    const appFormTitle = document.getElementById('appFormTitle');
+    const createAppIdInput = document.getElementById('createAppId');
+    const createAppNameInput = document.getElementById('createAppName');
+    const createAppUrlInput = document.getElementById('createAppUrl');
+    const createAppDescriptionInput = document.getElementById('createAppDescription');
+    const createAppStatusInput = document.getElementById('createAppStatus');
+    const createAppBtn = document.getElementById('createAppBtn');
+    const cancelAppEditBtn = document.getElementById('cancelAppEditBtn');
+
+    const toggleAddUserBtn = document.getElementById('toggleAddUserBtn');
+    const addUserPanel = document.getElementById('addUserPanel');
+    const newUserName = document.getElementById('newUserName');
+    const newUserUsername = document.getElementById('newUserUsername');
+    const newUserEmail = document.getElementById('newUserEmail');
+    const newUserPassword = document.getElementById('newUserPassword');
+    const newUserRole = document.getElementById('newUserRole');
+    const newUserAppsInput = document.getElementById('newUserAppsInput');
+    const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
+    const submitCreateUserBtn = document.getElementById('submitCreateUserBtn');
+
+    const manageUserRoleSelect = document.getElementById('manageUserRoleSelect');
+    const saveUserRoleBtn = document.getElementById('saveUserRoleBtn');
+    const manageUserPasswordInput = document.getElementById('manageUserPasswordInput');
+    const saveUserPasswordBtn = document.getElementById('saveUserPasswordBtn');
+    const deleteManageUserBtn = document.getElementById('deleteManageUserBtn');
+
     const activeGrantStatusBadge = document.getElementById('activeGrantStatusBadge');
     const activeGrantDetails = document.getElementById('activeGrantDetails');
     const grantRemainingDaysText = document.getElementById('grantRemainingDaysText');
@@ -410,6 +506,7 @@ router.get('/3vc17cs006', (_req, res) => {
       selectedUsername: '',
       selectedUser: null,
       selectedUserApps: [],
+      editingAppId: null,
     };
 
     function escapeHtml(value) {
@@ -572,14 +669,17 @@ router.get('/3vc17cs006', (_req, res) => {
         }
 
         return (
-          '<tr class="hover:bg-slate-900/80 transition-colors cursor-pointer" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
-            '<td class="p-2.5 font-semibold text-slate-200 hover:text-cyan-300 font-mono">' + escapeHtml(u.username) + '</td>' +
-            '<td class="p-2.5 text-slate-400 font-sans hover:text-cyan-300">' + escapeHtml(u.email) + '</td>' +
+          '<tr class="hover:bg-slate-900/80 transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
+            '<td class="p-2.5 font-semibold text-slate-200 hover:text-cyan-300 font-mono cursor-pointer">' + escapeHtml(u.username) + '</td>' +
+            '<td class="p-2.5 text-slate-400 font-sans hover:text-cyan-300 cursor-pointer">' + escapeHtml(u.email) + '</td>' +
             '<td class="p-2.5"><span class="px-2 py-0.5 rounded text-[11px] ' + rolePill + '">' + escapeHtml(u.role) + '</span></td>' +
             '<td class="p-2.5">' + licensePill + '</td>' +
             '<td class="p-2.5 text-cyan-300 text-[11px]">' + escapeHtml((u.projects || []).join(', ') || '-') + '</td>' +
             '<td class="p-2.5 text-right">' +
-              '<button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">Manage</button>' +
+              '<div class="flex items-center justify-end gap-1.5">' +
+                '<button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">Manage</button>' +
+                '<button class="px-2.5 py-1 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 text-xs font-semibold transition-colors" data-action="delete-user" data-username="' + escapeHtml(u.username) + '">Delete</button>' +
+              '</div>' +
             '</td>' +
           '</tr>'
         );
@@ -606,8 +706,10 @@ router.get('/3vc17cs006', (_req, res) => {
               '</div>' +
               '<div class="text-right shrink-0">' +
                 '<span class="inline-block px-2 py-0.5 border rounded text-[11px] font-semibold uppercase ' + pill + '">' + escapeHtml(app.status) + '</span>' +
-                '<div class="mt-2">' +
+                '<div class="mt-2 flex items-center justify-end gap-1.5">' +
                   '<button class="px-2.5 py-1 rounded text-xs font-semibold transition-colors ' + buttonClass + '" data-action="toggle-app" data-app-id="' + escapeHtml(app.appId) + '" data-next-status="' + nextStatus + '">Set ' + nextStatus + '</button>' +
+                  '<button class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-colors" data-action="edit-app" data-app-id="' + escapeHtml(app.appId) + '">Edit</button>' +
+                  (app.appId !== 'admin-console' ? '<button class="px-2.5 py-1 rounded text-xs font-semibold bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 transition-colors" data-action="delete-app" data-app-id="' + escapeHtml(app.appId) + '">Delete</button>' : '') +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -707,36 +809,105 @@ router.get('/3vc17cs006', (_req, res) => {
       document.getElementById('createAppStatus').value = 'active';
     });
 
-    document.getElementById('presetClearBtn').addEventListener('click', function () {
-      document.getElementById('createAppId').value = '';
-      document.getElementById('createAppName').value = '';
-      document.getElementById('createAppUrl').value = '';
-      document.getElementById('createAppDescription').value = '';
-      document.getElementById('createAppStatus').value = 'active';
-    });
+    function editApp(appId) {
+      const app = state.apps.find(function (a) { return a.appId === appId; });
+      if (!app) return;
+      state.editingAppId = appId;
+      if (appFormTitle) appFormTitle.textContent = 'Edit Application (' + appId + ')';
+      if (createAppIdInput) {
+        createAppIdInput.value = app.appId;
+        createAppIdInput.disabled = true;
+      }
+      if (createAppNameInput) createAppNameInput.value = app.name || '';
+      if (createAppUrlInput) createAppUrlInput.value = app.appUrl || '';
+      if (createAppDescriptionInput) createAppDescriptionInput.value = app.description || '';
+      if (createAppStatusInput) createAppStatusInput.value = app.status || 'active';
+      if (createAppBtn) createAppBtn.textContent = 'Update Application';
+      if (cancelAppEditBtn) cancelAppEditBtn.classList.remove('hidden');
+      if (createAppNameInput) createAppNameInput.focus();
+    }
 
-    document.getElementById('createAppBtn').addEventListener('click', async function () {
-      const appId = document.getElementById('createAppId').value.trim();
-      const name = document.getElementById('createAppName').value.trim();
-      const appUrl = document.getElementById('createAppUrl').value.trim();
-      const description = document.getElementById('createAppDescription').value.trim();
-      const status = document.getElementById('createAppStatus').value;
+    function cancelAppEdit() {
+      state.editingAppId = null;
+      if (appFormTitle) appFormTitle.textContent = 'Register / Update Application';
+      if (createAppIdInput) {
+        createAppIdInput.disabled = false;
+        createAppIdInput.value = '';
+      }
+      if (createAppNameInput) createAppNameInput.value = '';
+      if (createAppUrlInput) createAppUrlInput.value = '';
+      if (createAppDescriptionInput) createAppDescriptionInput.value = '';
+      if (createAppStatusInput) createAppStatusInput.value = 'active';
+      if (createAppBtn) createAppBtn.textContent = 'Register Application';
+      if (cancelAppEditBtn) cancelAppEditBtn.classList.add('hidden');
+    }
 
-      if (!appId || !name || !appUrl) {
-        alert('appId, name, and appUrl are required.');
+    async function deleteApp(appId) {
+      if (!appId) return;
+      if (appId === 'admin-console') {
+        alert('System application "admin-console" cannot be deleted.');
         return;
       }
-
+      if (!confirm('Are you sure you want to delete app "' + appId + '"? This will remove the app and unassign it from all users.')) {
+        return;
+      }
       try {
-        await api('/api/users/apps', {
-          method: 'POST',
-          body: JSON.stringify({ appId, name, appUrl, description, status }),
-        });
-        statusText.textContent = 'App "' + appId + '" registered successfully.';
-        document.getElementById('presetClearBtn').click();
+        await api('/api/users/apps/' + encodeURIComponent(appId), { method: 'DELETE' });
+        statusText.textContent = 'App "' + appId + '" deleted successfully.';
+        if (state.editingAppId === appId) cancelAppEdit();
         await loadDashboard();
       } catch (err) {
-        alert('App creation error: ' + err.message);
+        alert('Delete app error: ' + err.message);
+      }
+    }
+
+    document.getElementById('presetClearBtn').addEventListener('click', function () {
+      cancelAppEdit();
+    });
+
+    if (cancelAppEditBtn) {
+      cancelAppEditBtn.addEventListener('click', cancelAppEdit);
+    }
+
+    createAppBtn.addEventListener('click', async function () {
+      const appId = createAppIdInput.value.trim();
+      const name = createAppNameInput.value.trim();
+      const appUrl = createAppUrlInput.value.trim();
+      const description = createAppDescriptionInput.value.trim();
+      const status = createAppStatusInput.value;
+
+      if (state.editingAppId) {
+        if (!name || !appUrl) {
+          alert('App Name and App URL are required.');
+          return;
+        }
+        try {
+          await api('/api/users/apps/' + encodeURIComponent(state.editingAppId), {
+            method: 'PUT',
+            body: JSON.stringify({ name, appUrl, description, status }),
+          });
+          statusText.textContent = 'App "' + state.editingAppId + '" updated successfully.';
+          cancelAppEdit();
+          await loadDashboard();
+        } catch (err) {
+          alert('App update error: ' + err.message);
+        }
+      } else {
+        if (!appId || !name || !appUrl) {
+          alert('appId, name, and appUrl are required.');
+          return;
+        }
+        try {
+          await api('/api/users/apps', {
+            method: 'POST',
+            body: JSON.stringify({ appId, name, appUrl, description, status }),
+          });
+          statusText.textContent = 'App "' + appId + '" registered successfully.';
+          cancelAppEdit();
+          await loadDashboard();
+        } catch (err) {
+          alert('App creation error: ' + err.message);
+        }
       }
     });
 
@@ -810,6 +981,12 @@ router.get('/3vc17cs006', (_req, res) => {
           manageUserBadge.textContent = state.selectedUsername;
           manageUserBadge.classList.remove('hidden');
         }
+        if (manageUserRoleSelect) {
+          manageUserRoleSelect.value = payload.user.role || 'user';
+        }
+        if (manageUserPasswordInput) {
+          manageUserPasswordInput.value = '';
+        }
         renderUserAppsEditor();
         renderActiveGrantStatus(payload.activeGrant);
         statusText.textContent = 'Permissions and license loaded for ' + state.selectedUsername;
@@ -872,7 +1049,34 @@ router.get('/3vc17cs006', (_req, res) => {
       }
     }
 
-    // Role Update
+    async function deleteUser(username) {
+      const target = String(username || '').trim();
+      if (!target) return;
+      if (!confirm('Are you sure you want to permanently delete user "' + target + '"? This will remove all associated license grants and personal tokens.')) {
+        return;
+      }
+      try {
+        await api('/api/users/admin/users/' + encodeURIComponent(target), { method: 'DELETE' });
+        statusText.textContent = 'User "' + target + '" deleted successfully.';
+        if (state.selectedUsername && state.selectedUsername.toLowerCase() === target.toLowerCase()) {
+          state.selectedUsername = '';
+          state.selectedUser = null;
+          state.selectedUserApps = [];
+          manageUsernameInput.value = '';
+          manageHint.textContent = 'Click "Manage" on any user or enter username/email above.';
+          if (manageUserBadge) manageUserBadge.classList.add('hidden');
+          if (manageUserRoleSelect) manageUserRoleSelect.value = 'user';
+          if (manageUserPasswordInput) manageUserPasswordInput.value = '';
+          renderUserAppsEditor();
+          renderActiveGrantStatus(null);
+        }
+        await loadDashboard();
+      } catch (err) {
+        alert('Delete user error: ' + err.message);
+      }
+    }
+
+    // Role Update (Quick Card)
     document.getElementById('roleBtn').addEventListener('click', async function () {
       const username = document.getElementById('roleUsername').value.trim();
       const role = document.getElementById('roleValue').value;
@@ -892,6 +1096,114 @@ router.get('/3vc17cs006', (_req, res) => {
         alert('Role update error: ' + err.message);
       }
     });
+
+    // Add User Panel Listeners
+    if (toggleAddUserBtn && addUserPanel) {
+      toggleAddUserBtn.addEventListener('click', function () {
+        addUserPanel.classList.toggle('hidden');
+      });
+    }
+    if (cancelAddUserBtn && addUserPanel) {
+      cancelAddUserBtn.addEventListener('click', function () {
+        addUserPanel.classList.add('hidden');
+      });
+    }
+    if (submitCreateUserBtn) {
+      submitCreateUserBtn.addEventListener('click', async function () {
+        const name = newUserName.value.trim();
+        const username = newUserUsername.value.trim();
+        const email = newUserEmail.value.trim();
+        const password = newUserPassword.value.trim();
+        const role = newUserRole.value;
+        const apps = (newUserAppsInput.value || '')
+          .split(',')
+          .map(function (s) { return s.trim(); })
+          .filter(Boolean);
+
+        if (!username || !email || !password) {
+          alert('Username, email, and password are required.');
+          return;
+        }
+
+        submitCreateUserBtn.disabled = true;
+        submitCreateUserBtn.textContent = 'Creating...';
+        try {
+          await api('/api/users/admin/users', {
+            method: 'POST',
+            body: JSON.stringify({ name, username, email, password, role, apps }),
+          });
+          statusText.textContent = 'User "' + username + '" created successfully.';
+          newUserName.value = '';
+          newUserUsername.value = '';
+          newUserEmail.value = '';
+          newUserPassword.value = '';
+          newUserAppsInput.value = '';
+          if (addUserPanel) addUserPanel.classList.add('hidden');
+          await loadDashboard();
+        } catch (err) {
+          alert('Create user error: ' + err.message);
+        } finally {
+          submitCreateUserBtn.disabled = false;
+          submitCreateUserBtn.textContent = 'Create User Account';
+        }
+      });
+    }
+
+    // User Account Settings (in Manage Panel)
+    if (saveUserRoleBtn) {
+      saveUserRoleBtn.addEventListener('click', async function () {
+        if (!state.selectedUsername) {
+          alert('Select a user first.');
+          return;
+        }
+        const role = manageUserRoleSelect.value;
+        try {
+          await api('/api/users/admin/role/' + encodeURIComponent(state.selectedUsername), {
+            method: 'PUT',
+            body: JSON.stringify({ role: role }),
+          });
+          statusText.textContent = 'Role updated to "' + role + '" for ' + state.selectedUsername;
+          await loadDashboard();
+        } catch (err) {
+          alert('Role update error: ' + err.message);
+        }
+      });
+    }
+
+    if (saveUserPasswordBtn) {
+      saveUserPasswordBtn.addEventListener('click', async function () {
+        if (!state.selectedUsername) {
+          alert('Select a user first.');
+          return;
+        }
+        const newPassword = manageUserPasswordInput.value.trim();
+        if (!newPassword) {
+          alert('Please enter a new password.');
+          return;
+        }
+        try {
+          await api('/api/users/admin/users/' + encodeURIComponent(state.selectedUsername), {
+            method: 'PUT',
+            body: JSON.stringify({ password: newPassword }),
+          });
+          statusText.textContent = 'Password reset successfully for ' + state.selectedUsername;
+          manageUserPasswordInput.value = '';
+          alert('Password reset successfully for ' + state.selectedUsername);
+        } catch (err) {
+          alert('Password reset error: ' + err.message);
+        }
+      });
+    }
+
+    if (deleteManageUserBtn) {
+      deleteManageUserBtn.addEventListener('click', function () {
+        if (!state.selectedUsername) {
+          alert('Select a user first.');
+          return;
+        }
+        deleteUser(state.selectedUsername);
+      });
+    }
 
     // Event Listeners
     document.getElementById('connectBtn').addEventListener('click', loadDashboard);
@@ -948,6 +1260,13 @@ router.get('/3vc17cs006', (_req, res) => {
     });
 
     usersTable.addEventListener('click', function (e) {
+      const delBtn = e.target.closest('[data-action="delete-user"]');
+      if (delBtn) {
+        e.stopPropagation();
+        const username = delBtn.getAttribute('data-username');
+        if (username) deleteUser(username);
+        return;
+      }
       const target = e.target.closest('[data-action="manage-user"]');
       if (target) {
         const username = target.getAttribute('data-username');
@@ -956,6 +1275,18 @@ router.get('/3vc17cs006', (_req, res) => {
     });
 
     appsList.addEventListener('click', async function (e) {
+      const editBtn = e.target.closest('button[data-action="edit-app"]');
+      if (editBtn) {
+        const appId = editBtn.getAttribute('data-app-id');
+        if (appId) editApp(appId);
+        return;
+      }
+      const delBtn = e.target.closest('button[data-action="delete-app"]');
+      if (delBtn) {
+        const appId = delBtn.getAttribute('data-app-id');
+        if (appId) deleteApp(appId);
+        return;
+      }
       const btn = e.target.closest('button[data-action="toggle-app"]');
       if (!btn) return;
       const appId = btn.getAttribute('data-app-id');
