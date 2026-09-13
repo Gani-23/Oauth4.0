@@ -1,3 +1,9 @@
+const buffer = require('buffer');
+if (!buffer.SlowBuffer) {
+    buffer.SlowBuffer = function SlowBuffer() {};
+    buffer.SlowBuffer.prototype = {};
+}
+
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();

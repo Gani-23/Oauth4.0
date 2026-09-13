@@ -1259,6 +1259,89 @@ router.delete('/admin/personal-token/:tokenId', ...requireAdminSafe, async (req,
     }
 });
 
+router.post('/admin/licenses/generate', ...requireAdminSafe, async (req, res) => {
+    try {
+        const username = normalizeUsername(req.body?.username);
+        const appId = normalizeAppId(req.body?.appId);
+        const rawDays = req.body?.days;
+        const source = String(req.body?.source || 'admin_console').trim().toLowerCase();
+
+        if (!username || !appId) {
+            return res.status(400).json({ success: false, message: 'username and appId are required' });
+        }
+
+        const user = await User.findOne({ username }).select('role projects tokenVersion email');
+        if (!user) {
+            return res.status(404).json({ success: false, message: `User '${username}' not found` });
+        }
+
+        const appsMap = await getAppsMap({ includeInactive: true });
+        if (appId !== '*' && !appsMap.has(appId)) {
+            return res.status(404).json({ success: false, message: `App '${appId}' is not registered` });
+        }
+
+        const isLifetime = rawDays === 'lifetime' || rawDays === 'never' || Number(rawDays) >= 36500 || rawDays === 0;
+        const days = isLifetime ? 36500 : Math.max(1, Number(rawDays) || 30);
+        // 2099-12-31 23:59:59 UTC timestamp for lifetime licenses
+        const expiresAtUnix = isLifetime
+            ? 4102444799
+            : Math.floor((Date.now() + days * 24 * 60 * 60 * 1000) / 1000);
+        const expiresAtDate = new Date(expiresAtUnix * 1000);
+
+        // Ensure user has app access in their projects array
+        if (appId !== '*' && !(user.projects || []).map(normalizeAppId).includes(appId)) {
+            user.projects = normalizeAppList([...(user.projects || []), appId]);
+            await user.save();
+        }
+
+        const tokenId = `license-${appId}-${Date.now()}`;
+        await TrialLicenseGrant.findOneAndUpdate(
+            { userId: user._id, tokenId },
+            {
+                userId: user._id,
+                username: user.username,
+                source,
+                tokenId,
+                claimRef: `${appId}-admin-generated`,
+                apps: [appId],
+                expiresAt: expiresAtDate,
+                revokedAt: null,
+            },
+            { upsert: true, new: true },
+        );
+
+        const payload = {
+            sub: user._id.toString(),
+            username: user.username,
+            role: user.role,
+            projects: [appId],
+            tokenVersion: user.tokenVersion,
+            appId,
+            trialGrant: true,
+            trialSource: source,
+            trialTokenId: tokenId,
+            exp: expiresAtUnix,
+        };
+
+        const licenseToken = jwt.sign(payload, ACCESS_TOKEN_SECRET);
+
+        return res.json({
+            success: true,
+            message: `License generated for app '${appId}' (${isLifetime ? 'Lifetime' : days + ' days'})`,
+            username: user.username,
+            appId,
+            days: isLifetime ? 'lifetime' : days,
+            expiresAt: expiresAtDate.toISOString(),
+            expiresAtUtc: expiresAtDate.toUTCString(),
+            licenseToken,
+            tokenType: 'Bearer',
+        });
+    } catch (error) {
+        logger.error('Admin license generate error', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Error generating license' });
+    }
+});
+
 router.get('/admin/users/:username/apps', ...requireAdminSafe, async (req, res) => {
     try {
         const username = normalizeUsername(req.params.username);
