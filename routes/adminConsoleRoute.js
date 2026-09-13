@@ -16,7 +16,7 @@ router.get('/3vc17cs006', (_req, res) => {
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500 selection:text-slate-950">
-  <div class="max-w-7xl mx-auto px-4 py-8">
+  <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <!-- Top Header -->
     <header class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800">
       <div>
@@ -98,322 +98,379 @@ router.get('/3vc17cs006', (_req, res) => {
       </article>
     </section>
 
-    <!-- MAIN TWO-COLUMN WORKSPACE -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      
-      <!-- LEFT COLUMN: LICENSE GENERATOR & CREATE APP (7 cols) -->
-      <div class="lg:col-span-7 space-y-6">
+    <!-- 🧭 TOP NAVIGATION TABS -->
+    <div class="mb-6 border-b border-slate-800 pb-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <nav class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
+          <button id="tabNavUsers" type="button" class="tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20">
+            <span>👥 Users Directory & Access</span>
+            <span id="usersCountBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-950/20 text-slate-950 font-mono font-bold">0 users</span>
+          </button>
+          <button id="tabNavApps" type="button" class="tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70">
+            <span>🚀 Applications</span>
+            <span id="appsCountBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold">0 apps</span>
+          </button>
+          <button id="tabNavLicenses" type="button" class="tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70">
+            <span>🔑 Mint License Token</span>
+          </button>
+        </nav>
+        <div class="text-xs text-slate-400 font-mono hidden sm:flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>Endpoint: <code class="text-cyan-400">/3vc17cs006</code></span>
+        </div>
+      </div>
+    </div>
 
-        <!-- 🔑 LICENSE GENERATOR TOOL -->
-        <section class="bg-gradient-to-b from-slate-900 to-slate-900/80 border-2 border-cyan-500/40 rounded-2xl p-5 shadow-2xl">
-          <div class="flex items-center justify-between mb-4">
+    <!-- 👥 TAB PANE: USERS DIRECTORY -->
+    <div id="paneUsers" class="tab-content-pane space-y-4">
+      <!-- Toolbar: Search, Direct Lookup, Add User -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div class="flex-1 flex flex-wrap items-center gap-3">
+            <!-- Realtime Search bar -->
+            <div class="relative flex-1 min-w-[220px]">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm">🔍</span>
+              <input id="searchUsersInput" type="text" placeholder="Search by username, email, role, or app..." class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400 font-sans" />
+            </div>
+            <!-- Quick identifier inspect input -->
+            <div class="flex items-center gap-1.5">
+              <input id="manageUsername" type="text" placeholder="Inspect user/email..." class="w-44 sm:w-56 px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400" />
+              <button id="loadUserAppsBtn" type="button" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 font-semibold px-3 py-2 rounded-xl text-xs border border-slate-700 transition-colors">Inspect</button>
+            </div>
+          </div>
+          <!-- Add User button -->
+          <button type="button" id="toggleAddUserBtn" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-slate-950 font-bold text-xs sm:text-sm transition-all shadow-md shadow-cyan-500/10 flex items-center justify-center gap-1.5 shrink-0">
+            <span>➕ Add User</span>
+          </button>
+        </div>
+
+        <!-- Collapsible Add User Panel -->
+        <div id="addUserPanel" class="hidden mt-4 pt-4 border-t border-slate-800 p-4 bg-slate-950/80 border border-cyan-800/40 rounded-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-cyan-300 uppercase tracking-wider">Create New User Account</h3>
+            <span class="text-[10px] text-slate-500">Admin Privileged</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input id="newUserName" type="text" placeholder="Full Name (e.g. John Doe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+            <input id="newUserUsername" type="text" placeholder="Username (e.g. johndoe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400 font-mono" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input id="newUserEmail" type="email" placeholder="Email address" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+            <input id="newUserPassword" type="password" placeholder="Password (6+ chars)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
+          </div>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
             <div class="flex items-center gap-2">
-              <span class="text-xl">🔑</span>
+              <label class="text-xs text-slate-400 shrink-0">Role:</label>
+              <select id="newUserRole" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <input id="newUserAppsInput" type="text" placeholder="Initial apps (e.g. agentbuddy, krushigowrava)" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 font-mono" />
+          </div>
+          <div class="flex gap-2 justify-end pt-1">
+            <button type="button" id="cancelAddUserBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-medium">Cancel</button>
+            <button type="button" id="submitCreateUserBtn" class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors">Create User</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full-Width Responsive Users Table -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800 select-none">
+              <tr>
+                <th class="py-3.5 px-4 font-semibold">User</th>
+                <th class="py-3.5 px-4 font-semibold">Email</th>
+                <th class="py-3.5 px-4 font-semibold">Role</th>
+                <th class="py-3.5 px-4 font-semibold">Redeemed Trial / License</th>
+                <th class="py-3.5 px-4 font-semibold">Assigned Apps</th>
+                <th class="py-3.5 px-4 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTable" class="divide-y divide-slate-800/60 font-sans text-xs sm:text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🪟 USER MANAGEMENT SLIDE-OVER DRAWER -->
+    <div id="drawerBackdrop" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40 hidden transition-opacity"></div>
+    <aside id="userDrawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-lg sm:max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto transform translate-x-full transition-transform duration-300 ease-in-out">
+      <div class="p-6 space-y-5">
+        <!-- Drawer Top Bar -->
+        <div class="flex items-start justify-between pb-4 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xl">🛡️</span>
+              <h2 class="font-bold text-lg text-slate-100">User Access & License</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="manageUserBadge" class="text-xs px-2.5 py-0.5 rounded-md font-mono text-cyan-300 bg-cyan-950/80 border border-cyan-800 font-bold hidden"></span>
+              <p id="manageHint" class="text-xs text-slate-400">Manage trial days, license validity, and permissions.</p>
+            </div>
+          </div>
+          <button id="closeDrawerBtn" type="button" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors" title="Close Drawer (Esc)">
+            ✕
+          </button>
+        </div>
+
+        <!-- 1. Redeemed Trial Status -->
+        <div id="licenseStatusCard" class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Redeemed Trial Status</span>
+            <span id="activeGrantStatusBadge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-800 text-slate-400">No user selected</span>
+          </div>
+          <div id="activeGrantDetails" class="hidden space-y-2.5 text-xs pt-1">
+            <div class="grid grid-cols-2 gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
               <div>
-                <h2 class="font-bold text-lg text-cyan-300">Generate App License</h2>
-                <p class="text-xs text-slate-400">Mint signed JWT licenses with custom expiration for AgentBuddy or any app</p>
+                <p class="text-slate-400 text-[11px]">Remaining Period</p>
+                <p id="grantRemainingDaysText" class="text-base font-bold text-cyan-400 font-mono">-</p>
+              </div>
+              <div class="text-right">
+                <p class="text-slate-400 text-[11px]">Expiration Date</p>
+                <p id="grantExpiresAtText" class="text-slate-200 font-mono text-xs truncate">-</p>
               </div>
             </div>
-            <span class="text-xs bg-cyan-950 text-cyan-400 px-2 py-1 rounded border border-cyan-800 font-mono">JWT v4</span>
+            <div class="flex items-center justify-between text-xs text-slate-400 px-1 pt-1 border-t border-slate-900">
+              <span>Source: <strong id="grantSourceText" class="text-slate-300 font-mono">-</strong></span>
+              <span>Active Apps: <strong id="grantAppsText" class="text-cyan-300 font-mono">-</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Extend License Validity -->
+        <div id="extendLicenseCard" class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <span>⚡ Extend License / Trial Period</span>
+            </span>
+            <span class="text-[10px] text-slate-500">Adds onto existing days</span>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Quick Presets</label>
+            <div class="grid grid-cols-6 gap-1.5">
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="7">+7d</button>
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="14">+14d</button>
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="30">+30d</button>
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="60">+60d</button>
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="90">+90d</button>
+              <button type="button" class="preset-extend-btn px-1.5 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-700 hover:border-emerald-400 text-emerald-300 text-xs font-mono font-bold transition-colors" data-days="lifetime">✨ Life</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Target App</label>
+              <select id="extendAppId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                <option value="agentbuddy">agentbuddy</option>
+                <option value="*">* (All Apps)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Days to Add</label>
+              <input id="extendDaysInput" type="text" placeholder="30 or lifetime" value="30" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 font-mono" />
+            </div>
+          </div>
+          <button id="extendLicenseBtn" type="button" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-slate-950 font-bold py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/10">
+            <span>⚡ Extend License Validity</span>
+          </button>
+          <div id="extendResultBox" class="hidden p-3 rounded-xl bg-slate-900 border border-cyan-800/60 text-xs space-y-2">
+            <p id="extendResultMsg" class="text-cyan-300 font-medium"></p>
+            <div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                <span>Extended License Token:</span>
+                <button id="copyExtendedTokenBtn" type="button" class="text-cyan-400 hover:underline">Copy Token</button>
+              </div>
+              <input id="extendedTokenInput" readonly class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-300 select-all outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Application Access Permissions -->
+        <div class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+          <span class="text-xs font-semibold text-slate-300 block">Application Access Permissions</span>
+          <div id="userAppsEditor" class="max-h-44 overflow-auto border border-slate-800/90 rounded-xl p-3 space-y-2 bg-slate-900/60">
+            <p class="text-xs text-slate-500">No user selected. Click "Manage" next to any user.</p>
+          </div>
+          <button id="saveUserAppsBtn" type="button" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition-colors shadow">
+            Save App Permissions
+          </button>
+        </div>
+
+        <!-- 4. User Account Management (Role, Password, Delete) -->
+        <div id="userAccountSettings" class="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+          <span class="text-xs font-semibold text-slate-300 block">Account Security & Role</span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Assigned Role</label>
+              <div class="flex gap-1.5">
+                <select id="manageUserRoleSelect" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+                <button id="saveUserRoleBtn" type="button" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition-colors">Save</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400 block mb-1">Reset Password</label>
+              <div class="flex gap-1.5">
+                <input id="manageUserPasswordInput" type="password" placeholder="New password" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400" />
+                <button id="saveUserPasswordBtn" type="button" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs transition-colors">Reset</button>
+              </div>
+            </div>
+          </div>
+          <div class="pt-2 flex justify-end">
+            <button id="deleteManageUserBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
+              <span>🗑️ Permanently Delete User Account</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 🚀 TAB PANE: APPLICATIONS -->
+    <div id="paneApps" class="tab-content-pane hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Apps Directory (7 cols) -->
+        <div class="lg:col-span-7 space-y-4">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <div>
+                <h2 class="font-bold text-lg text-slate-100">Registered Applications</h2>
+                <p class="text-xs text-slate-400">Applications authenticated to connect to OAuth 4.0</p>
+              </div>
+              <span class="text-xs text-slate-400 font-mono bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">Direct Access</span>
+            </div>
+            <ul id="appsList" class="space-y-3"></ul>
+          </div>
+        </div>
+
+        <!-- Register / Edit Application Form (5 cols) -->
+        <div class="lg:col-span-5 space-y-4 sticky top-6">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+              <div>
+                <h2 id="appFormTitle" class="font-bold text-lg text-slate-100">Register New App</h2>
+                <p class="text-xs text-slate-400">Define or update application credentials</p>
+              </div>
+              <div class="flex gap-1.5">
+                <button type="button" id="presetAgentBuddyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded-lg transition-colors">Preset: AgentBuddy</button>
+                <button type="button" id="presetClearBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 px-2.5 py-1 rounded-lg transition-colors">Clear</button>
+              </div>
+            </div>
+            <div class="space-y-3.5">
+              <div class="space-y-1">
+                <label class="text-[11px] text-slate-400 font-medium">Application ID (Unique Slug)</label>
+                <input id="createAppId" type="text" placeholder="e.g. agentbuddy" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400 font-mono" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-[11px] text-slate-400 font-medium">Display Name</label>
+                <input id="createAppName" type="text" placeholder="e.g. AgentBuddy Web & Desktop" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" />
+              </div>
+              <div class="space-y-1">
+                <label class="text-[11px] text-slate-400 font-medium">Application Base URL</label>
+                <input id="createAppUrl" type="text" placeholder="https://app.example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400 font-mono" />
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2 space-y-1">
+                  <label class="text-[11px] text-slate-400 font-medium">Description</label>
+                  <input id="createAppDescription" type="text" placeholder="App purpose..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400" />
+                </div>
+                <div class="space-y-1">
+                  <label class="text-[11px] text-slate-400 font-medium">Status</label>
+                  <select id="createAppStatus" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:border-cyan-400">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex gap-2 pt-2">
+                <button id="createAppBtn" type="button" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-colors shadow-md shadow-emerald-500/10">
+                  Register App
+                </button>
+                <button id="cancelAppEditBtn" type="button" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔑 TAB PANE: LICENSE MINTER -->
+    <div id="paneLicenses" class="tab-content-pane hidden">
+      <div class="max-w-3xl mx-auto">
+        <section class="bg-gradient-to-b from-slate-900 to-slate-900/80 border-2 border-cyan-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl p-2 rounded-2xl bg-cyan-950/80 border border-cyan-800/80">🔑</span>
+              <div>
+                <h2 class="font-bold text-xl text-cyan-300">Generate Cryptographic App License</h2>
+                <p class="text-xs text-slate-400">Mint signed JWT licenses with custom expiration for AgentBuddy or any registered app</p>
+              </div>
+            </div>
+            <span class="text-xs bg-cyan-950 text-cyan-400 px-3 py-1 rounded-full border border-cyan-800 font-mono font-semibold">JWT v4</span>
           </div>
 
           <div class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Target User</label>
-                <select id="genLicenseUserSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400">
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Target User</label>
+                <select id="genLicenseUserSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400 font-sans">
                   <option value="">-- Select Loaded User --</option>
                 </select>
-                <input id="genLicenseUserCustom" type="text" placeholder="or type custom username" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 mt-1.5" />
+                <input id="genLicenseUserCustom" type="text" placeholder="or enter custom username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none focus:border-cyan-400 mt-2 font-mono" />
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Target App</label>
-                <select id="genLicenseAppSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400">
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Target Application</label>
+                <select id="genLicenseAppSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-400 font-sans">
                   <option value="agentbuddy">agentbuddy (AgentBuddy)</option>
                   <option value="*">* (All Active Apps)</option>
                 </select>
-                <input id="genLicenseAppCustom" type="text" placeholder="or type custom appId" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 mt-1.5" />
+                <input id="genLicenseAppCustom" type="text" placeholder="or enter custom appId" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none focus:border-cyan-400 mt-2 font-mono" />
               </div>
             </div>
 
             <!-- Duration Selector -->
             <div>
-              <label class="block text-xs font-semibold text-slate-300 mb-1">License Duration (Days)</label>
-              <div class="flex flex-wrap gap-2 mb-2">
-                <button type="button" class="license-preset-btn px-2.5 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-days="30">30 Days</button>
-                <button type="button" class="license-preset-btn px-2.5 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-days="90">90 Days</button>
-                <button type="button" class="license-preset-btn px-2.5 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-days="365">1 Year (365d)</button>
-                <button type="button" class="license-preset-btn px-2.5 py-1 text-xs rounded-md bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold" data-days="lifetime">✨ Lifetime (Year 2099)</button>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">License Duration (Days)</label>
+              <div class="flex flex-wrap gap-2 mb-2.5">
+                <button type="button" class="license-preset-btn px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors" data-days="30">30 Days</button>
+                <button type="button" class="license-preset-btn px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors" data-days="90">90 Days</button>
+                <button type="button" class="license-preset-btn px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors" data-days="365">1 Year (365d)</button>
+                <button type="button" class="license-preset-btn px-3 py-1.5 text-xs rounded-lg bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold transition-all shadow-md shadow-cyan-500/10" data-days="lifetime">✨ Lifetime (Year 2099)</button>
               </div>
               <div class="flex items-center gap-2">
-                <input id="genLicenseDays" type="text" value="lifetime" placeholder="e.g. 30, 90, 365, or lifetime" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-                <span class="text-xs text-slate-400">days</span>
+                <input id="genLicenseDays" type="text" value="lifetime" placeholder="e.g. 30, 90, 365, or lifetime" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-cyan-400 font-mono" />
+                <span class="text-xs text-slate-400 font-mono">days</span>
               </div>
             </div>
 
-            <button id="generateLicenseBtn" type="button" class="w-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-extrabold py-2.5 px-4 rounded-xl text-sm transition-all shadow-lg hover:shadow-cyan-500/20">
+            <button id="generateLicenseBtn" type="button" class="w-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-extrabold py-3 px-4 rounded-2xl text-sm transition-all shadow-lg hover:shadow-cyan-500/20">
               Generate License Token
             </button>
 
             <!-- Output Box -->
-            <div id="licenseResultBox" class="hidden pt-3 border-t border-slate-800 space-y-2">
+            <div id="licenseResultBox" class="hidden pt-4 border-t border-slate-800 space-y-3">
               <div class="flex items-center justify-between text-xs">
-                <span id="licenseExpiryBadge" class="text-emerald-400 font-semibold">Valid until: 2099-12-31</span>
-                <button id="copyLicenseBtn" type="button" class="bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 px-3 py-1 rounded font-semibold transition-colors">Copy License Token</button>
+                <span id="licenseExpiryBadge" class="text-emerald-400 font-semibold font-mono">Valid until: 2099-12-31</span>
+                <button id="copyLicenseBtn" type="button" class="bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 px-3.5 py-1.5 rounded-lg font-semibold transition-colors">Copy License Token</button>
               </div>
-              <textarea id="licenseOutputToken" readonly rows="4" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-cyan-300 font-mono select-all focus:outline-none focus:border-cyan-500"></textarea>
+              <textarea id="licenseOutputToken" readonly rows="4" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-cyan-300 font-mono select-all focus:outline-none focus:border-cyan-500"></textarea>
               <p class="text-xs text-slate-500">Paste directly into AgentBuddy or use via <code class="text-slate-400">Authorization: Bearer &lt;token&gt;</code>.</p>
             </div>
           </div>
         </section>
 
-        <!-- 🚀 REGISTER / EDIT APP -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <div class="flex items-center justify-between mb-3">
-            <h2 id="appFormTitle" class="font-bold text-base text-slate-200">Register New App</h2>
-            <div class="flex gap-1.5">
-              <button type="button" id="presetAgentBuddyBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-1 rounded">Preset: AgentBuddy</button>
-              <button type="button" id="presetClearBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 px-2 py-1 rounded">Clear</button>
-            </div>
-          </div>
-          <div class="space-y-3">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input id="createAppId" type="text" placeholder="appId (e.g. agentbuddy)" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-              <input id="createAppName" type="text" placeholder="Display Name (e.g. AgentBuddy)" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-            </div>
-            <input id="createAppUrl" type="text" placeholder="Application URL (e.g. https://app.example.com)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input id="createAppDescription" type="text" placeholder="Description (optional)" class="sm:col-span-2 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-              <select id="createAppStatus" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400">
-                <option value="active">Status: active</option>
-                <option value="inactive">Status: inactive</option>
-              </select>
-            </div>
-            <div class="flex gap-2">
-              <button id="createAppBtn" type="button" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition-colors shadow">
-                Register App
-              </button>
-              <button id="cancelAppEditBtn" type="button" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-colors">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- 👥 USERS DIRECTORY TABLE -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2.5">
-              <h2 class="font-bold text-base text-slate-200">Users Directory</h2>
-              <span id="usersCountBadge" class="text-xs text-slate-400 font-mono">0 users</span>
-            </div>
-            <button type="button" id="toggleAddUserBtn" class="text-xs px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors flex items-center gap-1 shadow">
-              <span>+ Add User</span>
-            </button>
-          </div>
-
-          <!-- COLLAPSIBLE ADD USER FORM -->
-          <div id="addUserPanel" class="hidden mb-4 p-4 bg-slate-950 border border-cyan-800/60 rounded-xl space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-xs font-bold text-cyan-300 uppercase tracking-wider">Create New User Account</h3>
-              <span class="text-[10px] text-slate-500">Admin Privileged</span>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <input id="newUserName" type="text" placeholder="Full Name (e.g. John Doe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
-              <input id="newUserUsername" type="text" placeholder="Username (e.g. johndoe)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400 font-mono" />
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <input id="newUserEmail" type="email" placeholder="Email address" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
-              <input id="newUserPassword" type="password" placeholder="Password (6+ chars)" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-400" />
-            </div>
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2.5">
-              <div class="flex items-center gap-2">
-                <label class="text-xs text-slate-400 shrink-0">Role:</label>
-                <select id="newUserRole" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-              </div>
-              <input id="newUserAppsInput" type="text" placeholder="Initial apps (e.g. agentbuddy, krushigowrava)" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-cyan-400 font-mono" />
-            </div>
-            <div class="flex gap-2 justify-end pt-1">
-              <button type="button" id="cancelAddUserBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-medium">Cancel</button>
-              <button type="button" id="submitCreateUserBtn" class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors">Create User</button>
-            </div>
-          </div>
-
-          <div class="overflow-auto max-h-80 border border-slate-800 rounded-xl">
-            <table class="w-full text-xs">
-              <thead class="bg-slate-950 text-slate-400 sticky top-0 border-b border-slate-800">
-                <tr>
-                  <th class="text-left p-2.5">Username</th>
-                  <th class="text-left p-2.5">Email</th>
-                  <th class="text-left p-2.5">Role</th>
-                  <th class="text-left p-2.5">Redeemed / Trial</th>
-                  <th class="text-left p-2.5">Apps</th>
-                  <th class="text-right p-2.5">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="usersTable" class="divide-y divide-slate-800/60 font-mono"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <!-- RIGHT COLUMN: APPS LIST & ACCESS MANAGEMENT (5 cols) -->
-      <div class="lg:col-span-5 space-y-6">
-
-        <!-- 📱 REGISTERED APPS LIST -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="font-bold text-base text-slate-200">Registered Applications</h2>
-            <span id="appsCountBadge" class="text-xs text-slate-400 font-mono">0 apps</span>
-          </div>
-          <ul id="appsList" class="space-y-2.5 max-h-96 overflow-auto pr-1"></ul>
-        </section>
-
-        <!-- 🛡️ USER APP ACCESS & LICENSE MANAGEMENT -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <div class="flex items-center justify-between mb-1">
-            <h2 class="font-bold text-base text-slate-200">User Apps & License Validity</h2>
-            <span id="manageUserBadge" class="text-xs px-2 py-0.5 rounded font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800 hidden"></span>
-          </div>
-          <p id="manageHint" class="text-xs text-slate-400 mb-3">Select a user to view redeemed trial days, extend validity, or manage app permissions.</p>
-          <div class="flex gap-2 mb-3">
-            <input id="manageUsername" type="text" placeholder="Username or email (e.g. testing7@gmail.com)" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-            <button id="loadUserAppsBtn" type="button" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm">Load</button>
-          </div>
-
-          <!-- PRESENT REDEEMED LICENSE STATUS -->
-          <div id="licenseStatusCard" class="mb-3 p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Redeemed Trial Status</span>
-              <span id="activeGrantStatusBadge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-800 text-slate-400">No user selected</span>
-            </div>
-            <div id="activeGrantDetails" class="hidden space-y-2 text-xs pt-1">
-              <div class="grid grid-cols-2 gap-2 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-                <div>
-                  <p class="text-slate-400 text-[10px]">Remaining Period</p>
-                  <p id="grantRemainingDaysText" class="text-base font-bold text-cyan-400 font-mono">-</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-slate-400 text-[10px]">Expiration Date</p>
-                  <p id="grantExpiresAtText" class="text-slate-200 font-mono text-[11px] truncate">-</p>
-                </div>
-              </div>
-              <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                <span>Source: <strong id="grantSourceText" class="text-slate-300 font-mono">-</strong></span>
-                <span>Active Apps: <strong id="grantAppsText" class="text-cyan-300 font-mono">-</strong></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- EXTENSION PERIOD CONTROLS -->
-          <div id="extendLicenseCard" class="mb-3 p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <span>⚡ Extend License / Trial Period</span>
-              </span>
-              <span class="text-[10px] text-slate-500">Adds onto existing days</span>
-            </div>
-            <div>
-              <label class="text-[10px] text-slate-400 block mb-1">Quick Presets</label>
-              <div class="grid grid-cols-6 gap-1">
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="7">+7d</button>
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="14">+14d</button>
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="30">+30d</button>
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="60">+60d</button>
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-300 text-xs font-mono font-semibold text-slate-300 transition-colors" data-days="90">+90d</button>
-                <button type="button" class="preset-extend-btn px-1.5 py-1 rounded bg-emerald-950/80 border border-emerald-700 hover:border-emerald-400 text-emerald-300 text-xs font-mono font-bold transition-colors" data-days="lifetime">✨ Life</button>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">Target App</label>
-                <select id="extendAppId" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
-                  <option value="agentbuddy">agentbuddy</option>
-                  <option value="*">* (All Apps)</option>
-                </select>
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">Days to Add</label>
-                <input id="extendDaysInput" type="text" placeholder="30 or lifetime" value="30" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400 font-mono" />
-              </div>
-            </div>
-            <button id="extendLicenseBtn" type="button" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-slate-950 font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow">
-              <span>⚡ Extend License Validity</span>
-            </button>
-            <div id="extendResultBox" class="hidden p-2.5 rounded-lg bg-slate-900 border border-cyan-800/60 text-xs space-y-1.5">
-              <p id="extendResultMsg" class="text-cyan-300 font-medium"></p>
-              <div>
-                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
-                  <span>Extended License Token:</span>
-                  <button id="copyExtendedTokenBtn" type="button" class="text-cyan-400 hover:underline">Copy Token</button>
-                </div>
-                <input id="extendedTokenInput" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] font-mono text-slate-300 select-all outline-none" />
-              </div>
-            </div>
-          </div>
-
-          <!-- APP PERMISSIONS CHECKBOXES -->
-          <div class="mb-1.5 flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-300">Application Access Permissions</span>
-          </div>
-          <div id="userAppsEditor" class="max-h-36 overflow-auto border border-slate-800 rounded-xl p-3 space-y-2 bg-slate-950">
-            <p class="text-xs text-slate-500">No user selected. Click "Manage" next to any user.</p>
-          </div>
-          <button id="saveUserAppsBtn" type="button" class="w-full mt-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-xl text-sm transition-colors shadow">
-            Save App Permissions
-          </button>
-
-          <!-- ⚙️ USER ACCOUNT SETTINGS (ROLE, PASSWORD, DELETE) -->
-          <div id="userAccountSettings" class="mt-4 pt-3.5 border-t border-slate-800 space-y-2.5">
-            <span class="text-xs font-semibold text-slate-300 block">User Account Management</span>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">Assigned Role</label>
-                <div class="flex gap-1.5">
-                  <select id="manageUserRoleSelect" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400">
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-                  <button id="saveUserRoleBtn" type="button" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition-colors">Save Role</button>
-                </div>
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">Reset Password</label>
-                <div class="flex gap-1.5">
-                  <input id="manageUserPasswordInput" type="password" placeholder="New password" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-400" />
-                  <button id="saveUserPasswordBtn" type="button" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs transition-colors">Reset</button>
-                </div>
-              </div>
-            </div>
-            <div class="pt-1 flex justify-end">
-              <button id="deleteManageUserBtn" type="button" class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1">
-                <span>🗑️ Permanently Delete User Account</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- 👑 ROLE MANAGEMENT -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <h2 class="font-bold text-base text-slate-200 mb-2">Change User Role</h2>
-          <div class="space-y-3">
-            <div class="flex gap-2">
-              <input id="roleUsername" type="text" placeholder="Target username" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400" />
-              <select id="roleValue" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-            </div>
-            <button id="roleBtn" type="button" class="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 px-4 rounded-xl text-sm transition-colors">
-              Update Role
-            </button>
-          </div>
-        </section>
-
+        <!-- Hidden Quick Role Form (for API compatibility) -->
+        <div class="hidden">
+          <input id="roleUsername" type="text" />
+          <select id="roleValue"><option value="user">user</option><option value="admin">admin</option></select>
+          <button id="roleBtn" type="button"></button>
+        </div>
       </div>
     </div>
   </div>
@@ -652,33 +709,68 @@ router.get('/3vc17cs006', (_req, res) => {
     });
 
     function renderUsers() {
-      usersTable.innerHTML = state.users.map(function (u) {
-        const rolePill = u.role === 'admin'
-          ? 'bg-violet-500/20 text-violet-300 border border-violet-800'
-          : 'bg-slate-800 text-slate-300';
+      const searchInput = document.getElementById('searchUsersInput');
+      const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+      const filtered = state.users.filter(function (u) {
+        if (!query) return true;
+        return (
+          (u.username && u.username.toLowerCase().includes(query)) ||
+          (u.email && u.email.toLowerCase().includes(query)) ||
+          (u.role && u.role.toLowerCase().includes(query)) ||
+          ((u.projects || []).some(function (p) { return p.toLowerCase().includes(query); }))
+        );
+      });
 
-        let licensePill = '<span class="text-slate-500 text-[11px]">-</span>';
+      if (filtered.length === 0) {
+        usersTable.innerHTML = '<tr><td colspan="6" class="py-12 text-center text-slate-500 text-sm font-sans">No users found matching your search.</td></tr>';
+        return;
+      }
+
+      usersTable.innerHTML = filtered.map(function (u) {
+        const rolePill = u.role === 'admin'
+          ? 'bg-violet-500/20 text-violet-300 border border-violet-700/80 font-bold'
+          : 'bg-slate-800 text-slate-300 border border-slate-700/60 font-medium';
+
+        let licensePill = '<span class="text-slate-500 text-xs">-</span>';
         if (u.licenseStatus) {
           if (u.licenseStatus.isLifetime) {
-            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-700">✨ Lifetime</span>';
+            licensePill = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-700">✨ Lifetime</span>';
           } else if (u.licenseStatus.hasActiveGrant) {
-            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-700">' + u.licenseStatus.remainingDays + 'd left</span>';
+            licensePill = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-700 font-mono">' + u.licenseStatus.remainingDays + 'd left</span>';
           } else if (u.licenseStatus.expiresAt) {
-            licensePill = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-800">Expired</span>';
+            licensePill = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-800">Expired</span>';
           }
         }
 
+        const appPills = (u.projects && u.projects.length > 0)
+          ? u.projects.map(function (p) {
+              return '<span class="inline-block px-2 py-0.5 rounded text-xs font-mono bg-cyan-950/60 border border-cyan-800/80 text-cyan-300 mr-1.5 my-0.5">' + escapeHtml(p) + '</span>';
+            }).join('')
+          : '<span class="text-slate-500 text-xs font-sans">None</span>';
+
+        const initial = (u.username || 'U')[0].toUpperCase();
+
         return (
-          '<tr class="hover:bg-slate-900/80 transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
-            '<td class="p-2.5 font-semibold text-slate-200 hover:text-cyan-300 font-mono cursor-pointer">' + escapeHtml(u.username) + '</td>' +
-            '<td class="p-2.5 text-slate-400 font-sans hover:text-cyan-300 cursor-pointer">' + escapeHtml(u.email) + '</td>' +
-            '<td class="p-2.5"><span class="px-2 py-0.5 rounded text-[11px] ' + rolePill + '">' + escapeHtml(u.role) + '</span></td>' +
-            '<td class="p-2.5">' + licensePill + '</td>' +
-            '<td class="p-2.5 text-cyan-300 text-[11px]">' + escapeHtml((u.projects || []).join(', ') || '-') + '</td>' +
-            '<td class="p-2.5 text-right">' +
-              '<div class="flex items-center justify-end gap-1.5">' +
-                '<button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">Manage</button>' +
-                '<button class="px-2.5 py-1 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 text-xs font-semibold transition-colors" data-action="delete-user" data-username="' + escapeHtml(u.username) + '">Delete</button>' +
+          '<tr class="hover:bg-slate-900/90 transition-colors border-b border-slate-800/40" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
+            '<td class="py-3.5 px-4">' +
+              '<div class="flex items-center gap-3">' +
+                '<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-900 to-slate-800 border border-cyan-700/50 flex items-center justify-center text-xs font-bold text-cyan-300 font-mono shrink-0">' + initial + '</div>' +
+                '<div>' +
+                  '<p class="font-bold text-slate-100 hover:text-cyan-300 font-mono text-xs sm:text-sm cursor-pointer">' + escapeHtml(u.username) + '</p>' +
+                  (u.name ? '<p class="text-[11px] text-slate-400 font-sans">' + escapeHtml(u.name) + '</p>' : '') +
+                '</div>' +
+              '</div>' +
+            '</td>' +
+            '<td class="py-3.5 px-4 text-slate-300 font-sans hover:text-cyan-300 cursor-pointer text-xs sm:text-sm">' + escapeHtml(u.email) + '</td>' +
+            '<td class="py-3.5 px-4"><span class="px-2.5 py-0.5 rounded-full text-[11px] ' + rolePill + '">' + escapeHtml(u.role) + '</span></td>' +
+            '<td class="py-3.5 px-4">' + licensePill + '</td>' +
+            '<td class="py-3.5 px-4 max-w-xs">' + appPills + '</td>' +
+            '<td class="py-3.5 px-4 text-right">' +
+              '<div class="flex items-center justify-end gap-2">' +
+                '<button class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-700 hover:border-cyan-500" data-action="manage-user" data-username="' + escapeHtml(u.username) + '">' +
+                  '<span>⚙️ Manage</span>' +
+                '</button>' +
+                '<button class="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 text-xs font-semibold transition-colors" data-action="delete-user" data-username="' + escapeHtml(u.username) + '">Delete</button>' +
               '</div>' +
             '</td>' +
           '</tr>'
@@ -690,27 +782,28 @@ router.get('/3vc17cs006', (_req, res) => {
       appsList.innerHTML = state.apps.map(function (app) {
         const nextStatus = app.status === 'active' ? 'inactive' : 'active';
         const pill = app.status === 'active'
-          ? 'text-emerald-300 bg-emerald-950/60 border-emerald-800'
-          : 'text-rose-300 bg-rose-950/60 border-rose-800';
+          ? 'text-emerald-300 bg-emerald-950/80 border-emerald-700'
+          : 'text-rose-300 bg-rose-950/80 border-rose-800';
         const buttonClass = app.status === 'active'
           ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-800'
           : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-800';
 
         return (
-          '<li class="p-3.5 rounded-xl border border-slate-800 bg-slate-950 hover:border-slate-700 transition-colors">' +
-            '<div class="flex items-start justify-between gap-3">' +
-              '<div>' +
-                '<p class="font-bold text-sm text-slate-200 font-mono">' + escapeHtml(app.appId) + '</p>' +
-                '<p class="text-slate-400 text-xs mt-0.5">' + escapeHtml(app.name) + '</p>' +
-                (app.appUrl ? '<a href="' + escapeHtml(app.appUrl) + '" target="_blank" class="text-cyan-400 hover:underline text-[11px] mt-1 block truncate max-w-xs">' + escapeHtml(app.appUrl) + '</a>' : '') +
-              '</div>' +
-              '<div class="text-right shrink-0">' +
-                '<span class="inline-block px-2 py-0.5 border rounded text-[11px] font-semibold uppercase ' + pill + '">' + escapeHtml(app.status) + '</span>' +
-                '<div class="mt-2 flex items-center justify-end gap-1.5">' +
-                  '<button class="px-2.5 py-1 rounded text-xs font-semibold transition-colors ' + buttonClass + '" data-action="toggle-app" data-app-id="' + escapeHtml(app.appId) + '" data-next-status="' + nextStatus + '">Set ' + nextStatus + '</button>' +
-                  '<button class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-colors" data-action="edit-app" data-app-id="' + escapeHtml(app.appId) + '">Edit</button>' +
-                  (app.appId !== 'admin-console' ? '<button class="px-2.5 py-1 rounded text-xs font-semibold bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 transition-colors" data-action="delete-app" data-app-id="' + escapeHtml(app.appId) + '">Delete</button>' : '') +
+          '<li class="p-4 sm:p-5 rounded-2xl border border-slate-800 bg-slate-950 hover:border-slate-700 transition-colors shadow-sm">' +
+            '<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">' +
+              '<div class="space-y-1">' +
+                '<div class="flex items-center gap-2">' +
+                  '<span class="font-bold text-sm sm:text-base text-slate-100 font-mono">' + escapeHtml(app.appId) + '</span>' +
+                  '<span class="px-2.5 py-0.5 border rounded-full text-[10px] font-semibold uppercase ' + pill + '">' + escapeHtml(app.status) + '</span>' +
                 '</div>' +
+                '<p class="text-slate-300 text-xs sm:text-sm font-medium">' + escapeHtml(app.name) + '</p>' +
+                (app.description ? '<p class="text-slate-400 text-xs">' + escapeHtml(app.description) + '</p>' : '') +
+                (app.appUrl ? '<a href="' + escapeHtml(app.appUrl) + '" target="_blank" class="text-cyan-400 hover:underline text-xs flex items-center gap-1 font-mono mt-1">' + escapeHtml(app.appUrl) + ' ↗</a>' : '') +
+              '</div>' +
+              '<div class="flex items-center gap-2 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-800">' +
+                '<button class="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ' + buttonClass + '" data-action="toggle-app" data-app-id="' + escapeHtml(app.appId) + '" data-next-status="' + nextStatus + '">Set ' + nextStatus + '</button>' +
+                '<button class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-colors" data-action="edit-app" data-app-id="' + escapeHtml(app.appId) + '">Edit</button>' +
+                (app.appId !== 'admin-console' ? '<button class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800 transition-colors" data-action="delete-app" data-app-id="' + escapeHtml(app.appId) + '">Delete</button>' : '') +
               '</div>' +
             '</div>' +
           '</li>'
@@ -989,6 +1082,7 @@ router.get('/3vc17cs006', (_req, res) => {
         }
         renderUserAppsEditor();
         renderActiveGrantStatus(payload.activeGrant);
+        openUserDrawer();
         statusText.textContent = 'Permissions and license loaded for ' + state.selectedUsername;
       } catch (err) {
         alert('Error: ' + err.message);
@@ -1059,11 +1153,12 @@ router.get('/3vc17cs006', (_req, res) => {
         await api('/api/users/admin/users/' + encodeURIComponent(target), { method: 'DELETE' });
         statusText.textContent = 'User "' + target + '" deleted successfully.';
         if (state.selectedUsername && state.selectedUsername.toLowerCase() === target.toLowerCase()) {
+          closeUserDrawer();
           state.selectedUsername = '';
           state.selectedUser = null;
           state.selectedUserApps = [];
           manageUsernameInput.value = '';
-          manageHint.textContent = 'Click "Manage" on any user or enter username/email above.';
+          manageHint.textContent = 'Manage trial days, license validity, and permissions.';
           if (manageUserBadge) manageUserBadge.classList.add('hidden');
           if (manageUserRoleSelect) manageUserRoleSelect.value = 'user';
           if (manageUserPasswordInput) manageUserPasswordInput.value = '';
@@ -1301,6 +1396,84 @@ router.get('/3vc17cs006', (_req, res) => {
         alert('Toggle error: ' + err.message);
       }
     });
+
+    // User Drawer Open/Close Helpers
+    function openUserDrawer() {
+      const drawer = document.getElementById('userDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.remove('translate-x-full');
+        drawer.classList.add('translate-x-0');
+      }
+      if (backdrop) {
+        backdrop.classList.remove('hidden');
+      }
+    }
+
+    function closeUserDrawer() {
+      const drawer = document.getElementById('userDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.remove('translate-x-0');
+        drawer.classList.add('translate-x-full');
+      }
+      if (backdrop) {
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+    if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', closeUserDrawer);
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    if (drawerBackdrop) drawerBackdrop.addEventListener('click', closeUserDrawer);
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeUserDrawer();
+    });
+
+    // Realtime User Search
+    const searchUsersInput = document.getElementById('searchUsersInput');
+    if (searchUsersInput) {
+      searchUsersInput.addEventListener('input', renderUsers);
+    }
+
+    // Top Navigation Tabs
+    const tabNavUsers = document.getElementById('tabNavUsers');
+    const tabNavApps = document.getElementById('tabNavApps');
+    const tabNavLicenses = document.getElementById('tabNavLicenses');
+    const paneUsers = document.getElementById('paneUsers');
+    const paneApps = document.getElementById('paneApps');
+    const paneLicenses = document.getElementById('paneLicenses');
+
+    function switchMainTab(activeTab) {
+      const tabs = [
+        { btn: tabNavUsers, pane: paneUsers, id: 'users' },
+        { btn: tabNavApps, pane: paneApps, id: 'apps' },
+        { btn: tabNavLicenses, pane: paneLicenses, id: 'licenses' },
+      ];
+
+      tabs.forEach(function (t) {
+        if (!t.btn || !t.pane) return;
+        if (t.id === activeTab) {
+          t.pane.classList.remove('hidden');
+          t.btn.className = 'tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20';
+          const badge = t.btn.querySelector('span[id$="Badge"]');
+          if (badge) {
+            badge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-slate-950/20 text-slate-950 font-mono font-bold';
+          }
+        } else {
+          t.pane.classList.add('hidden');
+          t.btn.className = 'tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70';
+          const badge = t.btn.querySelector('span[id$="Badge"]');
+          if (badge) {
+            badge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold';
+          }
+        }
+      });
+    }
+
+    if (tabNavUsers) tabNavUsers.addEventListener('click', function () { switchMainTab('users'); });
+    if (tabNavApps) tabNavApps.addEventListener('click', function () { switchMainTab('apps'); });
+    if (tabNavLicenses) tabNavLicenses.addEventListener('click', function () { switchMainTab('licenses'); });
 
     // Auto-Connect on page load if token is stored
     window.addEventListener('DOMContentLoaded', function () {
