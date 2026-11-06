@@ -28,6 +28,9 @@ router.get('/3vc17cs006', (_req, res) => {
         <p class="text-slate-400 text-sm mt-1">Secret Route: <code class="bg-slate-900 text-cyan-300 px-1.5 py-0.5 rounded border border-slate-800">/3vc17cs006</code></p>
       </div>
       <div class="flex items-center gap-2">
+        <button id="copyAdminPatHeaderBtn" type="button" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm" title="Copy active admin token">
+          <span>📋 Copy Admin Token</span>
+        </button>
         <button id="refreshBtn" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2 rounded-lg font-semibold text-sm transition-colors shadow-sm">Refresh Dashboard</button>
         <button id="disconnectBtn" class="bg-slate-800 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 px-3 py-2 rounded-lg font-medium text-sm transition-colors border border-slate-700">Clear Session</button>
       </div>
@@ -47,10 +50,18 @@ router.get('/3vc17cs006', (_req, res) => {
       </div>
 
       <!-- Quick Login Panel -->
-      <div id="quickLoginPanel" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <input id="loginEmail" type="text" placeholder="Admin Email / Username" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-colors" />
-        <input id="loginPassword" type="password" placeholder="Password" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-colors" />
-        <button id="quickSignInBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-4 rounded-lg text-sm transition-colors shadow">Sign In & Connect</button>
+      <div id="quickLoginPanel" class="space-y-2">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input id="loginEmail" type="text" placeholder="Admin Email / Username" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors" />
+          <input id="loginPassword" type="password" placeholder="Password" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors" />
+          <button id="quickSignInBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-4 rounded-lg text-sm transition-colors shadow">Sign In & Connect</button>
+        </div>
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+          <button id="quickFillBtn" type="button" class="text-cyan-400 hover:text-cyan-300 font-medium hover:underline flex items-center gap-1">
+            <span>⚡ Auto-Fill Saved Admin Credentials</span>
+          </button>
+          <span class="text-slate-500 text-[11px]">Press Enter in either field to sign in</span>
+        </div>
       </div>
 
       <!-- Raw Token Panel (Hidden by default) -->
@@ -112,6 +123,10 @@ router.get('/3vc17cs006', (_req, res) => {
           </button>
           <button id="tabNavLicenses" type="button" class="tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70">
             <span>🔑 Mint License Token</span>
+          </button>
+          <button id="tabNavAlerts" type="button" class="tab-nav-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70">
+            <span>🔔 Multi-Channel Alerts</span>
+            <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold">Email Ready</span>
           </button>
         </nav>
         <div class="text-xs text-slate-400 font-mono hidden sm:flex items-center gap-2">
@@ -547,6 +562,131 @@ router.get('/3vc17cs006', (_req, res) => {
           <input id="roleUsername" type="text" />
           <select id="roleValue"><option value="user">user</option><option value="admin">admin</option></select>
           <button id="roleBtn" type="button"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔔 TAB PANE: MULTI-CHANNEL ALERTS & TELEMETRY -->
+    <div id="paneAlerts" class="tab-content-pane hidden space-y-6 max-w-5xl mx-auto">
+      <!-- Top Overview Banner -->
+      <div class="bg-gradient-to-r from-cyan-950/60 to-indigo-950/60 border border-cyan-800/60 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">📡</span>
+            <h2 class="text-xl font-bold text-slate-100">Zero-Budget Notification & Telemetry Hub</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">Automatic alerts for new user signups, license minting, app heartbeats, and field crash reports across your preferred channels.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            SMTP Active
+          </span>
+        </div>
+      </div>
+
+      <!-- Grid of Channels -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- 1. Email (Nodemailer) -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">📧</span>
+                <div>
+                  <h3 class="font-bold text-slate-200 text-sm">Automated Email</h3>
+                  <p class="text-[11px] text-slate-400">Nodemailer (Gmail SMTP)</p>
+                </div>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">Connected</span>
+            </div>
+            <p class="text-xs text-slate-400">Delivers signed licenses directly into users' inboxes upon generation or renewal.</p>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 text-xs font-mono">
+              <p class="text-slate-400">Sender: <span class="text-cyan-300">devisundarenterprises09@gmail.com</span></p>
+              <p class="text-slate-400">Provider: <span class="text-emerald-400">Google SMTP (Free)</span></p>
+            </div>
+          </div>
+          <div class="space-y-2 pt-2 border-t border-slate-800">
+            <input id="testEmailTargetInput" type="email" placeholder="Recipient (default: devisundarenterprises09@gmail.com)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400" />
+            <button id="sendTestEmailBtn" type="button" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded-xl text-xs transition-colors shadow">
+              Send Test Email
+            </button>
+            <p id="testEmailStatus" class="text-[11px] text-slate-400 text-center font-mono"></p>
+          </div>
+        </div>
+
+        <!-- 2. Telegram Bot -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">📱</span>
+                <div>
+                  <h3 class="font-bold text-slate-200 text-sm">Telegram Bot</h3>
+                  <p class="text-[11px] text-slate-400">Instant Phone Push</p>
+                </div>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold border border-slate-700">Optional</span>
+            </div>
+            <p class="text-xs text-slate-400">Real-time alerts whenever a user registers, renews, or encounters a crash.</p>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <p>1. Open Telegram &amp; search <code class="text-cyan-300">@BotFather</code></p>
+              <p>2. Send <code class="text-cyan-300">/newbot</code> and get your token</p>
+              <p>3. Add token to <code class="text-slate-300">.env</code> or Render</p>
+            </div>
+          </div>
+          <div class="space-y-2 pt-2 border-t border-slate-800">
+            <button id="sendTestTelegramBtn" type="button" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold py-2 px-3 rounded-xl text-xs transition-colors shadow">
+              Send Test Telegram Ping
+            </button>
+            <p id="testTelegramStatus" class="text-[11px] text-slate-400 text-center font-mono"></p>
+          </div>
+        </div>
+
+        <!-- 3. Discord Webhook -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">💬</span>
+                <div>
+                  <h3 class="font-bold text-slate-200 text-sm">Discord Webhook</h3>
+                  <p class="text-[11px] text-slate-400">Team Audit Stream</p>
+                </div>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold border border-slate-700">Optional</span>
+            </div>
+            <p class="text-xs text-slate-400">Posts rich embed cards into your private server channel for activity feeds.</p>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <p>1. Go to Discord Server Settings</p>
+              <p>2. Integrations &gt; Webhooks &gt; New Webhook</p>
+              <p>3. Copy URL and save to <code class="text-slate-300">.env</code></p>
+            </div>
+          </div>
+          <div class="space-y-2 pt-2 border-t border-slate-800">
+            <button id="sendTestDiscordBtn" type="button" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-3 rounded-xl text-xs transition-colors shadow">
+              Send Test Discord Embed
+            </button>
+            <p id="testDiscordStatus" class="text-[11px] text-slate-400 text-center font-mono"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- App Telemetry & Diagnostics Endpoints -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-3">
+        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+          <span>⚙️ Live Application Telemetry Endpoints</span>
+        </h3>
+        <p class="text-xs text-slate-400">AgentBuddy and other client apps report their status and field diagnostics to these endpoints:</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <span class="text-emerald-400 font-bold">POST /api/telemetry/heartbeat</span>
+            <p class="text-[11px] text-slate-500 font-sans">Heartbeat ping reporting app ID, OS version, and active status.</p>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <span class="text-rose-400 font-bold">POST /api/telemetry/crash</span>
+            <p class="text-[11px] text-slate-500 font-sans">Silent background crash logger triggering instant phone &amp; email alerts.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1730,15 +1870,18 @@ router.get('/3vc17cs006', (_req, res) => {
     const tabNavUsers = document.getElementById('tabNavUsers');
     const tabNavApps = document.getElementById('tabNavApps');
     const tabNavLicenses = document.getElementById('tabNavLicenses');
+    const tabNavAlerts = document.getElementById('tabNavAlerts');
     const paneUsers = document.getElementById('paneUsers');
     const paneApps = document.getElementById('paneApps');
     const paneLicenses = document.getElementById('paneLicenses');
+    const paneAlerts = document.getElementById('paneAlerts');
 
     function switchMainTab(activeTab) {
       const tabs = [
         { btn: tabNavUsers, pane: paneUsers, id: 'users' },
         { btn: tabNavApps, pane: paneApps, id: 'apps' },
         { btn: tabNavLicenses, pane: paneLicenses, id: 'licenses' },
+        { btn: tabNavAlerts, pane: paneAlerts, id: 'alerts' },
       ];
 
       tabs.forEach(function (t) {
@@ -1764,6 +1907,137 @@ router.get('/3vc17cs006', (_req, res) => {
     if (tabNavUsers) tabNavUsers.addEventListener('click', function () { switchMainTab('users'); });
     if (tabNavApps) tabNavApps.addEventListener('click', function () { switchMainTab('apps'); });
     if (tabNavLicenses) tabNavLicenses.addEventListener('click', function () { switchMainTab('licenses'); });
+    if (tabNavAlerts) tabNavAlerts.addEventListener('click', function () { switchMainTab('alerts'); });
+
+    // Quick Fill Admin Credentials
+    const quickFillBtn = document.getElementById('quickFillBtn');
+    if (quickFillBtn) {
+      quickFillBtn.addEventListener('click', function () {
+        loginEmail.value = 'ganiadmin@agentbuddy.local';
+        loginPassword.value = 'Gani@Admin!2026';
+        statusText.textContent = 'Admin credentials pre-filled. Press Enter or click Sign In.';
+      });
+    }
+
+    // Submit on Enter Key
+    [loginEmail, loginPassword].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.getElementById('quickSignInBtn').click();
+        }
+      });
+    });
+
+    // Copy Admin PAT from Header
+    const copyAdminPatHeaderBtn = document.getElementById('copyAdminPatHeaderBtn');
+    if (copyAdminPatHeaderBtn) {
+      copyAdminPatHeaderBtn.addEventListener('click', function () {
+        const token = tokenInput.value.trim() || localStorage.getItem(STORAGE_KEY) || '';
+        if (!token) {
+          alert('No active admin token found. Please sign in first.');
+          return;
+        }
+        navigator.clipboard.writeText(token);
+        const originalText = copyAdminPatHeaderBtn.innerHTML;
+        copyAdminPatHeaderBtn.innerHTML = '<span>✅ Copied Admin Token!</span>';
+        setTimeout(function () {
+          copyAdminPatHeaderBtn.innerHTML = originalText;
+        }, 2000);
+      });
+    }
+
+    // Test Notification Dispatchers
+    const sendTestEmailBtn = document.getElementById('sendTestEmailBtn');
+    const testEmailTargetInput = document.getElementById('testEmailTargetInput');
+    const testEmailStatus = document.getElementById('testEmailStatus');
+    if (sendTestEmailBtn) {
+      sendTestEmailBtn.addEventListener('click', async function () {
+        testEmailStatus.textContent = 'Sending test email...';
+        try {
+          const res = await api('/api/users/notifications/test', {
+            method: 'POST',
+            body: JSON.stringify({
+              channel: 'email',
+              target: (testEmailTargetInput ? testEmailTargetInput.value.trim() : '') || null,
+            }),
+          });
+          if (res.success) {
+            testEmailStatus.innerHTML = '<span class="text-emerald-400 font-bold">Email sent successfully!</span> Check inbox/spam.';
+          } else {
+            testEmailStatus.innerHTML = '<span class="text-rose-400">Failed: ' + (res.error || res.reason || 'Unknown error') + '</span>';
+          }
+        } catch (err) {
+          testEmailStatus.innerHTML = '<span class="text-rose-400">Error: ' + err.message + '</span>';
+        }
+      });
+    }
+
+    const sendTestTelegramBtn = document.getElementById('sendTestTelegramBtn');
+    const testTelegramStatus = document.getElementById('testTelegramStatus');
+    if (sendTestTelegramBtn) {
+      sendTestTelegramBtn.addEventListener('click', async function () {
+        testTelegramStatus.textContent = 'Sending Telegram message...';
+        try {
+          const res = await api('/api/users/notifications/test', {
+            method: 'POST',
+            body: JSON.stringify({ channel: 'telegram' }),
+          });
+          if (res.success) {
+            testTelegramStatus.innerHTML = '<span class="text-emerald-400 font-bold">Telegram message sent!</span>';
+          } else {
+            testTelegramStatus.innerHTML = '<span class="text-rose-400">Failed: ' + (res.error || res.reason || 'Not configured in .env') + '</span>';
+          }
+        } catch (err) {
+          testTelegramStatus.innerHTML = '<span class="text-rose-400">Error: ' + err.message + '</span>';
+        }
+      });
+    }
+
+    const sendTestDiscordBtn = document.getElementById('sendTestDiscordBtn');
+    const testDiscordStatus = document.getElementById('testDiscordStatus');
+    if (sendTestDiscordBtn) {
+      sendTestDiscordBtn.addEventListener('click', async function () {
+        testDiscordStatus.textContent = 'Sending Discord embed...';
+        try {
+          const res = await api('/api/users/notifications/test', {
+            method: 'POST',
+            body: JSON.stringify({ channel: 'discord' }),
+          });
+          if (res.success) {
+            testDiscordStatus.innerHTML = '<span class="text-emerald-400 font-bold">Discord embed posted!</span>';
+          } else {
+            testDiscordStatus.innerHTML = '<span class="text-rose-400">Failed: ' + (res.error || res.reason || 'Not configured in .env') + '</span>';
+          }
+        } catch (err) {
+          testDiscordStatus.innerHTML = '<span class="text-rose-400">Error: ' + err.message + '</span>';
+        }
+      });
+    }
+
+    // Keyboard Accessibility: Esc closes drawers & modals; / focuses user search
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        const passwordModalBackdrop = document.getElementById('passwordModalBackdrop');
+        const userDrawer = document.getElementById('userDrawer');
+        const drawerBackdrop = document.getElementById('drawerBackdrop');
+        if (passwordModalBackdrop && !passwordModalBackdrop.classList.contains('hidden')) {
+          passwordModalBackdrop.classList.add('hidden');
+        }
+        if (userDrawer && !userDrawer.classList.contains('translate-x-full')) {
+          userDrawer.classList.add('translate-x-full');
+          if (drawerBackdrop) drawerBackdrop.classList.add('hidden');
+        }
+      } else if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchUsersInput');
+        if (searchInput) {
+          switchMainTab('users');
+          searchInput.focus();
+        }
+      }
+    });
 
     // Auto-Connect on page load if token is stored
     window.addEventListener('DOMContentLoaded', function () {

@@ -13,6 +13,15 @@ const TrialLicenseGrant = require('../models/TrialLicenseGrant');
 const AdminPersonalToken = require('../models/AdminPersonalToken');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
+    notifyUserCreated,
+    notifyLicenseIssued,
+    notifyTelemetry,
+    notifyCrashReport,
+    sendEmail,
+    sendTelegram,
+    sendDiscord,
+} = require('../services/notificationService');
+const {
     AUTH_TEST_MODE,
     hasBreakGlassToken,
     adminIpGuard,
@@ -497,6 +506,9 @@ router.post('/register', authGuardMiddleware, authLimiter, async (req, res) => {
         });
 
         await newUser.save();
+
+        notifyUserCreated(newUser, userApps[0] || 'agentbuddy')
+            .catch((err) => logger.warn('Registration notification dispatch failed', { error: err.message }));
 
         return res.status(201).json({
             success: true,
@@ -1276,6 +1288,9 @@ router.post('/admin/users', ...requireAdminSafe, async (req, res) => {
             projects: userApps,
         });
 
+        notifyUserCreated(newUser, userApps[0] || 'agentbuddy')
+            .catch((err) => logger.warn('Admin user created notification dispatch failed', { error: err.message }));
+
         return res.status(201).json({
             success: true,
             message: `User '${normalizedUsername}' created successfully`,
@@ -1662,6 +1677,15 @@ router.post('/admin/licenses/generate', ...requireAdminSafe, async (req, res) =>
 
         const licenseToken = jwt.sign(payload, ACCESS_TOKEN_SECRET);
 
+        notifyLicenseIssued({
+            username: user.username,
+            email: user.email,
+            token: licenseToken,
+            expiresAt: expiresAtDate,
+            appId,
+            daysAdded: isLifetime ? 'Lifetime' : `${days} days`,
+        }).catch((err) => logger.warn('License generate notification dispatch failed', { error: err.message }));
+
         return res.json({
             success: true,
             message: `License generated for app '${appId}' (${isLifetime ? 'Lifetime' : days + ' days'})`,
@@ -1910,6 +1934,15 @@ router.post('/admin/users/:username/licenses/extend', ...requireAdminSafe, async
 
         const licenseToken = jwt.sign(payload, ACCESS_TOKEN_SECRET);
 
+        notifyLicenseIssued({
+            username: user.username,
+            email: user.email,
+            token: licenseToken,
+            expiresAt: expiresAtDate,
+            appId: targetAppId,
+            daysAdded: isLifetime ? 'Lifetime' : `+${addedDays} days`,
+        }).catch((err) => logger.warn('License extend notification dispatch failed', { error: err.message }));
+
         return res.json({
             success: true,
             message: `License successfully extended for ${user.username} (${isLifetime ? 'Lifetime' : '+' + addedDays + ' days, total: ' + remainingDays + ' days remaining'})`,
@@ -2151,6 +2184,76 @@ router.delete('/delete-user/:usernameOrEmail', ...requireAdminSafe, async (req, 
 router.get('/metrics', ...requireAdminSafe, async (req, res) => {
     res.set('Content-Type', metricsRegistry.contentType);
     res.end(await metricsRegistry.metrics());
+});
+
+// Telemetry: Heartbeat Ping
+router.post('/telemetry/heartbeat', async (req, res) => {
+    try {
+        const { appId, os, version, user } = req.body || {};
+        const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+
+        notifyTelemetry({
+            appId: appId || 'agentbuddy',
+            os,
+            version,
+            user,
+            ip: clientIp,
+        }).catch((err) => logger.warn('Heartbeat notify error', { error: err.message }));
+
+        return res.json({ success: true, timestamp: new Date().toISOString() });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Telemetry error' });
+    }
+});
+
+// Telemetry: Field Crash Alert
+router.post('/telemetry/crash', async (req, res) => {
+    try {
+        const { appId, error, stack, os, version, user } = req.body || {};
+
+        notifyCrashReport({
+            appId: appId || 'agentbuddy',
+            error: error || 'Unhandled exception',
+            stack,
+            os,
+            version,
+            user,
+        }).catch((err) => logger.warn('Crash alert notify error', { error: err.message }));
+
+        return res.json({ success: true, logged: true });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Crash logging error' });
+    }
+});
+
+// Notifications: Channel Test Dispatcher
+router.post('/notifications/test', ...requireAdminSafe, async (req, res) => {
+    try {
+        const { channel, target } = req.body || {};
+        if (channel === 'email') {
+            const recipient = target || process.env.SMTP_USER;
+            const result = await sendEmail({
+                to: recipient,
+                subject: '🧪 AgentBuddy Notification Test',
+                html: '<div style="font-family: sans-serif; padding: 20px;"><h3>Test Successful!</h3><p>Your OAuth 4.0 Email Delivery pipeline is operational.</p></div>',
+                text: 'Test Successful! OAuth 4.0 Email Delivery is operational.',
+            });
+            return res.json(result);
+        } else if (channel === 'telegram') {
+            const result = await sendTelegram('🧪 <b>AgentBuddy Alert Test</b>\n\nTelegram notification channel is connected and operational!');
+            return res.json(result);
+        } else if (channel === 'discord') {
+            const result = await sendDiscord({
+                title: '🧪 AgentBuddy Notification Test',
+                description: 'Discord Webhook channel is connected and operational!',
+            });
+            return res.json(result);
+        } else {
+            return res.status(400).json({ success: false, message: 'Invalid channel specified' });
+        }
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 module.exports = router;
