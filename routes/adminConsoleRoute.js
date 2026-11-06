@@ -689,6 +689,40 @@ router.get('/3vc17cs006', (_req, res) => {
           </div>
         </div>
       </div>
+
+      <!-- Database Storage & Auto-Purge (60 Days / 2 Months) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+              <span>🧹 Database Storage &amp; 60-Day Auto-Purge</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-mono border border-cyan-500/30">Auto-TTL Active</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">MongoDB automatically purges telemetry logs and heartbeats older than 60 days (2 months) so your free 512MB tier never fills up.</p>
+          </div>
+          <button id="manualPurgeBtn" type="button" class="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 font-semibold px-3.5 py-2 rounded-xl text-xs transition-colors shrink-0">
+            Purge Old Logs Now
+          </button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <p class="text-[11px] text-slate-500">Retention Period</p>
+            <p class="text-lg font-bold text-slate-200 font-mono mt-0.5">60 Days</p>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <p class="text-[11px] text-slate-500">Auto-Sweep</p>
+            <p class="text-lg font-bold text-emerald-400 font-mono mt-0.5">Enabled</p>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <p class="text-[11px] text-slate-500">Multi-App Scope</p>
+            <p class="text-lg font-bold text-cyan-400 font-mono mt-0.5">All Apps</p>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <p class="text-[11px] text-slate-500">Cost Impact</p>
+            <p class="text-lg font-bold text-emerald-400 font-mono mt-0.5">$0 Free</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2012,6 +2046,20 @@ router.get('/3vc17cs006', (_req, res) => {
           }
         } catch (err) {
           testDiscordStatus.innerHTML = '<span class="text-rose-400">Error: ' + err.message + '</span>';
+        }
+      });
+    }
+
+    // Manual Log Purge Button
+    const manualPurgeBtn = document.getElementById('manualPurgeBtn');
+    if (manualPurgeBtn) {
+      manualPurgeBtn.addEventListener('click', async function () {
+        if (!confirm('Purge telemetry and heartbeat logs older than 60 days now?')) return;
+        try {
+          const res = await api('/api/users/telemetry/purge?days=60', { method: 'DELETE' });
+          alert(res.message || 'Purge completed.');
+        } catch (err) {
+          alert('Purge error: ' + err.message);
         }
       });
     }

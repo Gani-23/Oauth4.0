@@ -11,6 +11,7 @@ const User = require('../models/User');
 const App = require('../models/App');
 const TrialLicenseGrant = require('../models/TrialLicenseGrant');
 const AdminPersonalToken = require('../models/AdminPersonalToken');
+const TelemetryLog = require('../models/TelemetryLog');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
     notifyUserCreated,
@@ -2191,9 +2192,20 @@ router.post('/telemetry/heartbeat', async (req, res) => {
     try {
         const { appId, os, version, user } = req.body || {};
         const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+        const normalizedAppId = normalizeAppId(appId) || 'agentbuddy';
+
+        TelemetryLog.create({
+            appId: normalizedAppId,
+            eventType: 'heartbeat',
+            user: user || null,
+            version: version || null,
+            os: os || null,
+            ip: clientIp || null,
+            details: req.body || {},
+        }).catch((e) => logger.warn('TelemetryLog save error', { error: e.message }));
 
         notifyTelemetry({
-            appId: appId || 'agentbuddy',
+            appId: normalizedAppId,
             os,
             version,
             user,
@@ -2210,9 +2222,19 @@ router.post('/telemetry/heartbeat', async (req, res) => {
 router.post('/telemetry/crash', async (req, res) => {
     try {
         const { appId, error, stack, os, version, user } = req.body || {};
+        const normalizedAppId = normalizeAppId(appId) || 'agentbuddy';
+
+        TelemetryLog.create({
+            appId: normalizedAppId,
+            eventType: 'crash',
+            user: user || null,
+            version: version || null,
+            os: os || null,
+            details: { error, stack },
+        }).catch((e) => logger.warn('TelemetryLog crash save error', { error: e.message }));
 
         notifyCrashReport({
-            appId: appId || 'agentbuddy',
+            appId: normalizedAppId,
             error: error || 'Unhandled exception',
             stack,
             os,
@@ -2223,6 +2245,43 @@ router.post('/telemetry/crash', async (req, res) => {
         return res.json({ success: true, logged: true });
     } catch (err) {
         return res.status(500).json({ success: false, message: 'Crash logging error' });
+    }
+});
+
+// Telemetry: Fetch Recent Logs & Stats
+router.get('/telemetry/logs', ...requireAdminSafe, async (req, res) => {
+    try {
+        const filterAppId = req.query.appId ? normalizeAppId(req.query.appId) : null;
+        const query = filterAppId && filterAppId !== '*' ? { appId: filterAppId } : {};
+        const total = await TelemetryLog.countDocuments(query);
+        const logs = await TelemetryLog.find(query).sort({ createdAt: -1 }).limit(100).lean();
+
+        return res.json({
+            success: true,
+            total,
+            returned: logs.length,
+            ttlDays: 60,
+            logs,
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error loading telemetry logs' });
+    }
+});
+
+// Telemetry: Manual Purge of Logs
+router.delete('/telemetry/purge', ...requireAdminSafe, async (req, res) => {
+    try {
+        const days = Math.max(1, Number(req.query.days || 60));
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const result = await TelemetryLog.deleteMany({ createdAt: { $lt: cutoff } });
+
+        return res.json({
+            success: true,
+            message: `Purged ${result.deletedCount} logs older than ${days} days`,
+            deletedCount: result.deletedCount,
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error purging logs' });
     }
 });
 
