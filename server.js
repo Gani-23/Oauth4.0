@@ -98,6 +98,9 @@ const start = async () => {
     await connectDB();
     await ensureBootstrapAdmin();
 
+    const { startPolling } = require('./services/telegramBotService');
+    startPolling();
+
     if (require.main === module) {
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);

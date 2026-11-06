@@ -12,6 +12,7 @@ const App = require('../models/App');
 const TrialLicenseGrant = require('../models/TrialLicenseGrant');
 const AdminPersonalToken = require('../models/AdminPersonalToken');
 const TelemetryLog = require('../models/TelemetryLog');
+const RenewalRequest = require('../models/RenewalRequest');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
     notifyUserCreated,
@@ -2312,6 +2313,135 @@ router.post('/notifications/test', ...requireAdminSafe, async (req, res) => {
         }
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// License: In-App Renewal Request from Client
+router.post('/licenses/request-renewal', async (req, res) => {
+    try {
+        const { appId, token, reason } = req.body || {};
+        if (!token) {
+            return res.status(400).json({ success: false, message: 'License token is required' });
+        }
+
+        let payload;
+        try {
+            payload = jwt.decode(token);
+        } catch (_) {}
+
+        if (!payload || !payload.sub) {
+            return res.status(400).json({ success: false, message: 'Invalid token format' });
+        }
+
+        const user = await User.findById(payload.sub).select('username email projects');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const normalizedAppId = normalizeAppId(appId || payload.appId) || 'agentbuddy';
+        const requestId = `renew_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+        const currentExp = payload.exp ? new Date(payload.exp * 1000) : null;
+
+        await RenewalRequest.create({
+            requestId,
+            appId: normalizedAppId,
+            userId: user._id,
+            username: user.username,
+            userEmail: user.email,
+            status: 'pending',
+            reason: reason || 'In-app renewal request',
+        });
+
+        // 1. Send Interactive Telegram Push with inline buttons
+        const { sendInteractiveRenewalRequest } = require('../services/telegramBotService');
+        sendInteractiveRenewalRequest({
+            requestId,
+            username: user.username,
+            userEmail: user.email,
+            appId: normalizedAppId,
+            currentExp,
+            reason,
+        }).catch((e) => logger.warn('Interactive telegram push failed', { error: e.message }));
+
+        // 2. Send Discord Embed
+        sendDiscord({
+            title: `🔔 License Renewal Requested: ${user.username}`,
+            description: `User **${user.username}** requested a license renewal for \`${normalizedAppId}\`.`,
+            fields: [
+                { name: 'App', value: normalizedAppId, inline: true },
+                { name: 'Email', value: user.email || 'N/A', inline: true },
+                { name: 'Request ID', value: requestId, inline: false },
+            ],
+            color: 16776960,
+        }).catch(() => {});
+
+        return res.json({
+            success: true,
+            message: 'Renewal request submitted to administrator',
+            requestId,
+        });
+    } catch (err) {
+        logger.error('Error requesting renewal', { error: err.message });
+        return res.status(500).json({ success: false, message: 'Error submitting renewal request' });
+    }
+});
+
+// License: Check specific renewal request status
+router.get('/licenses/check-renewal', async (req, res) => {
+    try {
+        const requestId = String(req.query.requestId || '').trim();
+        if (!requestId) {
+            return res.status(400).json({ success: false, message: 'requestId is required' });
+        }
+
+        const reqDoc = await RenewalRequest.findOne({ requestId }).lean();
+        if (!reqDoc) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        return res.json({
+            success: true,
+            status: reqDoc.status,
+            approvedDays: reqDoc.approvedDays,
+            newLicenseToken: reqDoc.newLicenseToken,
+            newExpiresAt: reqDoc.newExpiresAt,
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error checking renewal' });
+    }
+});
+
+// License: Auto-check latest active grant by user token
+router.get('/licenses/check-active', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : String(req.query.token || '').trim();
+        if (!token) {
+            return res.status(400).json({ success: false, message: 'Token required' });
+        }
+
+        const payload = jwt.decode(token);
+        if (!payload || !payload.sub) {
+            return res.status(400).json({ success: false, message: 'Invalid token' });
+        }
+
+        const latestApproved = await RenewalRequest.findOne({
+            userId: payload.sub,
+            status: 'approved',
+            newLicenseToken: { $ne: null },
+        }).sort({ updatedAt: -1 }).lean();
+
+        if (latestApproved && latestApproved.newLicenseToken && latestApproved.newLicenseToken !== token) {
+            return res.json({
+                hasNewLicense: true,
+                newLicenseToken: latestApproved.newLicenseToken,
+                expiresAt: latestApproved.newExpiresAt,
+            });
+        }
+
+        return res.json({ hasNewLicense: false });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error checking active grant' });
     }
 });
 
